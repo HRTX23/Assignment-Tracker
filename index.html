@@ -167,19 +167,19 @@
         }
 
         /* Custom Message Modal Specific Styles */
-        #message-modal-content {
+        #message-modal-content, #confirm-modal-content {
             text-align: center;
         }
-        #message-modal-content h3 {
+        #message-modal-content h3, #confirm-modal-content h3 {
             font-size: 1.25rem; /* text-xl */
             font-weight: bold;
             margin-bottom: 1rem;
         }
-        #message-modal-content p {
+        #message-modal-content p, #confirm-modal-content p {
             font-size: 1rem; /* text-base */
             margin-bottom: 1.5rem;
         }
-        #message-modal-content button {
+        #message-modal-content button, #confirm-modal-content button {
             padding: 0.75rem 1.5rem;
             font-size: 1rem;
             border-radius: 0.5rem;
@@ -590,7 +590,7 @@
                             </ul>
                             <li><strong>💰 ใช้ Gold ทำอะไร?</strong></li>
                             <ul class="list-disc list-inside text-sm ml-4">
-                                <li>� แลกรางวัลในร้านค้า</li>
+                                <li>🛍 แลกรางวัลในร้านค้า</li>
                                 <li>🎁 ใช้ซื้อของขวัญให้ตัวเองตามระบบ Motivation</li>
                             </ul>
                         </ul>
@@ -665,6 +665,18 @@
             </div>
         </div>
 
+        <!-- Custom Confirmation Modal (for confirms) -->
+        <div id="confirm-modal-overlay" class="modal-overlay hidden">
+            <div id="confirm-modal-content" class="modal-content">
+                <h3 id="confirm-modal-title"></h3>
+                <p id="confirm-modal-text"></p>
+                <div class="flex justify-center space-x-4">
+                    <button id="confirm-modal-cancel-btn" class="font-bold py-2 px-4 rounded-md btn-terracotta-base btn-terracotta-hover">ยกเลิก</button>
+                    <button id="confirm-modal-ok-btn" class="font-bold py-2 px-4 rounded-md btn-green-base btn-green-hover">ยืนยัน</button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script type="module">
@@ -729,14 +741,18 @@
                 document.getElementById('app-main-content').classList.add('hidden'); // Hide main app content
 
                 const okButton = document.getElementById('message-modal-ok-btn');
+                // Remove existing listener to prevent multiple calls if modal is reused
+                const oldOkButton = okButton.cloneNode(true);
+                okButton.parentNode.replaceChild(oldOkButton, okButton);
+
+                const newOkButton = document.getElementById('message-modal-ok-btn');
                 const closeHandler = () => {
                     this.hideMessageModal();
                     if (onOk && typeof onOk === 'function') {
                         onOk();
                     }
-                    okButton.removeEventListener('click', closeHandler); // Clean up event listener
                 };
-                okButton.addEventListener('click', closeHandler);
+                newOkButton.addEventListener('click', closeHandler);
             }
 
             /**
@@ -745,6 +761,54 @@
             hideMessageModal() {
                 document.getElementById('message-modal-overlay').classList.remove('active');
                 document.getElementById('message-modal-overlay').classList.add('hidden');
+                document.getElementById('app-main-content').classList.remove('hidden'); // Show main app content
+            }
+
+            /**
+             * Shows a custom confirmation modal.
+             * @param {string} message - The message to display.
+             * @param {string} [title='ยืนยัน'] - The title of the modal.
+             * @param {function} onConfirm - Callback function when Confirm is clicked.
+             * @param {function} [onCancel=null] - Callback function when Cancel is clicked.
+             */
+            showConfirmModal(message, title = 'ยืนยัน', onConfirm, onCancel = null) {
+                document.getElementById('confirm-modal-title').textContent = title;
+                document.getElementById('confirm-modal-text').textContent = message;
+                document.getElementById('confirm-modal-overlay').classList.add('active');
+                document.getElementById('confirm-modal-overlay').classList.remove('hidden');
+                document.getElementById('app-main-content').classList.add('hidden'); // Hide main app content
+
+                const okButton = document.getElementById('confirm-modal-ok-btn');
+                const cancelButton = document.getElementById('confirm-modal-cancel-btn');
+
+                // Clone and replace to remove existing listeners
+                const newOkButton = okButton.cloneNode(true);
+                okButton.parentNode.replaceChild(newOkButton, okButton);
+                const newCancelButton = cancelButton.cloneNode(true);
+                cancelButton.parentNode.replaceChild(newCancelButton, cancelButton);
+
+                const confirmHandler = () => {
+                    this.hideConfirmModal();
+                    if (onConfirm && typeof onConfirm === 'function') {
+                        onConfirm();
+                    }
+                };
+                const cancelHandler = () => {
+                    this.hideConfirmModal();
+                    if (onCancel && typeof onCancel === 'function') {
+                        onCancel();
+                    }
+                };
+                newOkButton.addEventListener('click', confirmHandler);
+                newCancelButton.addEventListener('click', cancelHandler);
+            }
+
+            /**
+             * Hides the custom confirmation modal.
+             */
+            hideConfirmModal() {
+                document.getElementById('confirm-modal-overlay').classList.remove('active');
+                document.getElementById('confirm-modal-overlay').classList.add('hidden');
                 document.getElementById('app-main-content').classList.remove('hidden'); // Show main app content
             }
 
@@ -1005,45 +1069,47 @@
                     return;
                 }
 
-                // Reset user stats if XP or Gold is checked
-                if (checkedOptions.includes('xp')) {
-                    this.state.user.xp = 0;
-                    this.state.user.level = 1; // Reset level too if XP is reset
-                }
-                if (checkedOptions.includes('gold')) {
-                    this.state.user.gold = 0;
-                }
+                this.showConfirmModal('คุณแน่ใจหรือไม่ที่จะรีเซ็ตข้อมูลที่เลือก? การกระทำนี้ไม่สามารถย้อนกลับได้!', 'ยืนยันการรีเซ็ตข้อมูล', () => {
+                    // Reset user stats if XP or Gold is checked
+                    if (checkedOptions.includes('xp')) {
+                        this.state.user.xp = 0;
+                        this.state.user.level = 1; // Reset level too if XP is reset
+                    }
+                    if (checkedOptions.includes('gold')) {
+                        this.state.user.gold = 0;
+                    }
 
-                // Reset mutable data structures based on selection
-                if (checkedOptions.includes('tasks')) {
-                    this.state.tasks = []; // Only user-added tasks can be reset
-                }
-                if (checkedOptions.includes('exams')) {
-                    // Reset user-added exams and reset status/score of hardcoded exams
-                    this.state.exams = this._hardcodedExams.map(hardcodedExam => ({ 
-                        ...hardcodedExam, 
-                        status: 'Planned', 
-                        score: null 
-                    }));
-                }
-                if (checkedOptions.includes('studySessions')) {
-                    this.state.studySessions = [];
-                }
-                if (checkedOptions.includes('userRewards')) {
-                    // Keep hardcoded rewards, remove user-added rewards and purchased rewards
-                    this.state.rewards = [...this._hardcodedRewards]; 
-                    this.state.purchasedRewards = []; // All purchased rewards will be reset as they are user-specific
-                }
+                    // Reset mutable data structures based on selection
+                    if (checkedOptions.includes('tasks')) {
+                        this.state.tasks = []; // Only user-added tasks can be reset
+                    }
+                    if (checkedOptions.includes('exams')) {
+                        // Reset user-added exams and reset status/score of hardcoded exams
+                        this.state.exams = this._hardcodedExams.map(hardcodedExam => ({ 
+                            ...hardcodedExam, 
+                            status: 'Planned', 
+                            score: null 
+                        }));
+                    }
+                    if (checkedOptions.includes('studySessions')) {
+                        this.state.studySessions = [];
+                    }
+                    if (checkedOptions.includes('userRewards')) {
+                        // Keep hardcoded rewards, remove user-added rewards and purchased rewards
+                        this.state.rewards = [...this._hardcodedRewards]; 
+                        this.state.purchasedRewards = []; // All purchased rewards will be reset as they are user-specific
+                    }
 
-                // Reset achievements unlocked status
-                this.state.achievements.forEach(ach => ach.unlocked = false);
+                    // Reset achievements unlocked status
+                    this.state.achievements.forEach(ach => ach.unlocked = false);
 
 
-                this.saveDataToLocalStorage();
-                this.recalculateAndApplyUserStats(); // Recalculate stats after potential XP/Gold reset
-                this.render();
-                this.hideResetDataModal();
-                this.showMessageModal('ข้อมูลที่เลือกถูกรีเซ็ตแล้ว!', 'สำเร็จ');
+                    this.saveDataToLocalStorage();
+                    this.recalculateAndApplyUserStats(); // Recalculate stats after potential XP/Gold reset
+                    this.render();
+                    this.hideResetDataModal();
+                    this.showMessageModal('ข้อมูลที่เลือกถูกรีเซ็ตแล้ว!', 'สำเร็จ');
+                });
             }
 
 
@@ -1078,8 +1144,7 @@
              * Resets the user's Gold to 0.
              */
             resetGold() {
-                // Using a custom modal for confirmation as alert/confirm can be problematic in iframes
-                this.showMessageModal('คุณแน่ใจหรือไม่ที่จะรีเซ็ต Gold ทั้งหมด? การกระทำนี้ไม่สามารถย้อนกลับได้!', 'ยืนยันการรีเซ็ต Gold', () => {
+                this.showConfirmModal('คุณแน่ใจหรือไม่ที่จะรีเซ็ต Gold ทั้งหมด? การกระทำนี้ไม่สามารถย้อนกลับได้!', 'ยืนยันการรีเซ็ต Gold', () => {
                     this.state.user.gold = 0;
                     this.saveDataToLocalStorage();
                     this.render();
@@ -1241,11 +1306,12 @@
             
             /**
              * Updates the status of a task and awards XP/Gold if completed.
-             * @param {number} taskId - The ID of the task to update.
+             * @param {number|string} taskId - The ID of the task to update.
              * @param {string} newStatus - The new status of the task.
              */
             updateTaskStatus(taskId, newStatus) {
-                const task = this.state.tasks.find(t => t.id === taskId);
+                const numericTaskId = Number(taskId); // Convert to number
+                const task = this.state.tasks.find(t => t.id === numericTaskId);
                 if (task) {
                     task.status = newStatus;
                     this.saveDataToLocalStorage();
@@ -1257,29 +1323,27 @@
 
             /**
              * Updates the score of an exam and potentially updates its status.
-             * @param {number} examId - The ID of the exam to update.
+             * @param {number|string} examId - The ID of the exam to update.
              * @param {string|number} score - The new score.
              */
             updateExamScore(examId, score) {
-                const exam = this.state.exams.find(e => e.id == examId); // Use == for ID comparison as some might be string and some number
+                const numericExamId = Number(examId); // Convert to number
+                const exam = this.state.exams.find(e => e.id === numericExamId); 
                 if (exam) {
-                    const oldScore = exam.score; // Keep old score to prevent re-awarding XP on subsequent renders if status doesn't change
+                    const oldScore = exam.score; 
                     exam.score = score !== '' ? parseFloat(score) : null;
                     const oldStatus = exam.status;
 
-                    if (exam.score !== null && exam.score >= 0) { // Assume valid score >= 0
+                    if (exam.score !== null && exam.score >= 0) { 
                         exam.status = 'Completed';
                     } else {
-                        exam.status = 'Planned'; // Reset status if score is cleared or invalid
+                        exam.status = 'Planned'; 
                     }
 
-                    // Only recalculate XP if score or status actually changed to a completed state
                     if (oldStatus !== 'Completed' && exam.status === 'Completed' && exam.score !== null) {
-                         this.recalculateAndApplyUserStats(); // Recalculate overall stats
+                         this.recalculateAndApplyUserStats(); 
                     } else if (oldStatus === 'Completed' && exam.status !== 'Completed') {
-                        // If status changed from completed to non-completed, might need to deduct XP/Gold
-                        // For simplicity, we only add XP/Gold. Resetting status means user needs to re-earn.
-                        this.recalculateAndApplyUserStats(); // Recalculate to ensure consistency
+                        this.recalculateAndApplyUserStats(); 
                     }
                     this.saveDataToLocalStorage();
                     this.render();
@@ -1289,106 +1353,114 @@
             
             /**
              * Deletes a task from the state.
-             * @param {number} taskId - The ID of the task to delete.
+             * @param {number|string} taskId - The ID of the task to delete.
              */
             deleteTask(taskId) {
-                const taskName = this.state.tasks.find(t => t.id === taskId)?.name || 'งาน';
-                if (confirm(`คุณแน่ใจหรือไม่ที่จะลบงาน "${taskName}"?`)) { // Keep confirm here for critical delete actions
-                    this.state.tasks = this.state.tasks.filter(t => t.id !== taskId);
+                const numericTaskId = Number(taskId); // Convert to number
+                const taskName = this.state.tasks.find(t => t.id === numericTaskId)?.name || 'งาน';
+                this.showConfirmModal(`คุณแน่ใจหรือไม่ที่จะลบงาน "${taskName}"?`, 'ยืนยันการลบ', () => {
+                    this.state.tasks = this.state.tasks.filter(t => t.id !== numericTaskId);
                     this.saveDataToLocalStorage();
-                    this.recalculateAndApplyUserStats(); // Recalculate stats after deletion
+                    this.recalculateAndApplyUserStats();
                     this.render();
                     this.showMessageModal(`ลบงาน "${taskName}" สำเร็จแล้ว!`, 'สำเร็จ');
-                }
+                });
             }
             
             /**
              * Deletes an exam from the state.
              * Hardcoded exams cannot be deleted via UI.
-             * @param {string} examId - The ID of the exam to delete.
+             * @param {number|string} examId - The ID of the exam to delete.
              */
             deleteExam(examId) {
-                const examToDelete = this.state.exams.find(e => e.id == examId);
+                const numericExamId = Number(examId); // Convert to number
+                const examToDelete = this.state.exams.find(e => e.id === numericExamId);
                 if (examToDelete && examToDelete.isHardcoded) {
                     this.showMessageModal("ไม่สามารถลบการสอบที่กำหนดไว้ล่วงหน้าได้", 'ข้อผิดพลาด');
                     return;
                 }
                 const examName = examToDelete?.name || 'การสอบ';
-                if (confirm(`คุณแน่ใจหรือไม่ที่จะลบการสอบ "${examName}"?`)) { // Keep confirm here
-                    this.state.exams = this.state.exams.filter(e => e.id != examId);
+                this.showConfirmModal(`คุณแน่ใจหรือไม่ที่จะลบการสอบ "${examName}"?`, 'ยืนยันการลบ', () => {
+                    this.state.exams = this.state.exams.filter(e => e.id !== numericExamId);
                     this.saveDataToLocalStorage();
-                    this.recalculateAndApplyUserStats(); // Recalculate stats after deletion
+                    this.recalculateAndApplyUserStats();
                     this.render();
                     this.showMessageModal(`ลบการสอบ "${examName}" สำเร็จแล้ว!`, 'สำเร็จ');
-                }
+                });
             }
 
             /**
              * Deletes a class schedule entry from the state.
              * Hardcoded entries cannot be deleted via UI.
-             * @param {string} id - The ID of the class schedule entry to delete.
+             * @param {number|string} id - The ID of the class schedule entry to delete.
              */
             deleteClassScheduleEntry(id) {
-                const classToDelete = this.state.classSchedule.find(c => c.id == id);
+                const numericId = Number(id); // Convert to number
+                const classToDelete = this.state.classSchedule.find(c => c.id === numericId);
                 if (classToDelete && classToDelete.isHardcoded) {
                     this.showMessageModal("ไม่สามารถลบตารางเรียนที่กำหนดไว้ล่วงหน้าได้", 'ข้อผิดพลาด');
                     return;
                 }
                 const className = classToDelete?.displayName || 'ตารางเรียน';
-                 if (confirm(`คุณแน่ใจหรือไม่ที่จะลบตารางเรียน "${className}"?`)) { // Keep confirm here
-                    this.state.classSchedule = this.state.classSchedule.filter(c => c.id != id);
+                this.showConfirmModal(`คุณแน่ใจหรือไม่ที่จะลบตารางเรียน "${className}"?`, 'ยืนยันการลบ', () => {
+                    this.state.classSchedule = this.state.classSchedule.filter(c => c.id !== numericId);
                     this.saveDataToLocalStorage();
                     this.render();
                     this.showMessageModal(`ลบตารางเรียน "${className}" สำเร็จแล้ว!`, 'สำเร็จ');
-                }
+                });
             }
 
             /**
              * Deletes a reward from the state.
              * Hardcoded rewards cannot be deleted via UI.
-             * @param {number} rewardId - The ID of the reward to delete.
+             * @param {number|string} rewardId - The ID of the reward to delete.
              */
             deleteReward(rewardId) {
-                const rewardToDelete = this.state.rewards.find(r => r.id == rewardId);
+                const numericRewardId = Number(rewardId); // Convert to number
+                const rewardToDelete = this.state.rewards.find(r => r.id === numericRewardId);
                 if (rewardToDelete && rewardToDelete.isHardcoded) {
                     this.showMessageModal("ไม่สามารถลบรางวัลที่กำหนดไว้ล่วงหน้าได้", 'ข้อผิดพลาด');
                     return;
                 }
                 const rewardName = rewardToDelete?.name || 'รางวัล';
-                if (confirm(`คุณแน่ใจหรือไม่ที่จะลบรางวัล "${rewardName}"?`)) { // Keep confirm here
-                    this.state.rewards = this.state.rewards.filter(r => r.id != rewardId);
+                this.showConfirmModal(`คุณแน่ใจหรือไม่ที่จะลบรางวัล "${rewardName}"?`, 'ยืนยันการลบ', () => {
+                    this.state.rewards = this.state.rewards.filter(r => r.id !== numericRewardId);
                     this.saveDataToLocalStorage();
                     this.render();
                     this.showMessageModal(`ลบรางวัล "${rewardName}" สำเร็จแล้ว!`, 'สำเร็จ');
-                }
+                });
             }
 
             /**
              * Deletes a study session from the state.
-             * @param {number} sessionId - The ID of the study session to delete.
+             * @param {number|string} sessionId - The ID of the study session to delete.
              */
             deleteStudySession(sessionId) {
-                const session = this.state.studySessions.find(s => s.id === sessionId);
+                const numericSessionId = Number(sessionId); // Convert to number
+                const session = this.state.studySessions.find(s => s.id === numericSessionId);
                 const sessionSubject = session?.subject || 'การเรียนรู้';
-                if (confirm(`คุณแน่ใจหรือไม่ที่จะลบการเรียนรู้ ${sessionSubject} (${session?.duration || ''} นาที)?`)) { // Keep confirm here
-                    this.state.studySessions = this.state.studySessions.filter(s => s.id !== sessionId);
+                this.showConfirmModal(`คุณแน่ใจหรือไม่ที่จะลบการเรียนรู้ ${sessionSubject} (${session?.duration || ''} นาที)?`, 'ยืนยันการลบ', () => {
+                    this.state.studySessions = this.state.studySessions.filter(s => s.id !== numericSessionId);
                     this.saveDataToLocalStorage();
-                    this.recalculateAndApplyUserStats(); // Recalculate stats after deletion
+                    this.recalculateAndApplyUserStats();
                     this.render();
                     this.showMessageModal(`ลบการเรียนรู้ ${sessionSubject} สำเร็จแล้ว!`, 'สำเร็จ');
-                }
+                });
             }
 
             /**
              * Attempts to "buy" a reward, deducting gold if successful.
-             * @param {number} rewardId - The ID of the reward to buy.
+             * @param {number|string} rewardId - The ID of the reward to buy.
              */
             buyReward(rewardId) {
-                const rewardIndex = this.state.rewards.findIndex(r => r.id === rewardId);
+                // Convert rewardId to a number, as it comes from HTML as a string
+                const numericRewardId = Number(rewardId); 
+
+                const rewardIndex = this.state.rewards.findIndex(r => r.id === numericRewardId); 
                 if (rewardIndex === -1) {
-                    console.error("Reward not found for purchase.");
+                    console.error("Reward not found for purchase. ID:", rewardId);
                     this.showMessageModal("ไม่พบรางวัลที่ต้องการซื้อ", 'ข้อผิดพลาด');
-                    return;
+                    return; 
                 }
                 const reward = this.state.rewards[rewardIndex];
             
@@ -1402,15 +1474,9 @@
                     const purchasedReward = { ...reward, purchaseDate: new Date().toISOString().split('T')[0] };
                     this.state.purchasedRewards.push(purchasedReward);
                     
-                    // Remove from available rewards if not hardcoded, or if it's hardcoded, mark it as "purchased" internally without removing
-                    // For hardcoded rewards, we keep them in the _hardcodedRewards list and simply don't display them in the shop if purchased.
-                    if (!reward.isHardcoded) {
-                         this.state.rewards.splice(rewardIndex, 1); // Remove from available list if it's user-added
-                    } else {
-                        // For hardcoded rewards, simply rely on the filter in renderRewards to hide it from the shop
-                        // We don't splice from the main `rewards` array if it's hardcoded, as it needs to be maintained for initial state.
-                    }
-
+                    // Remove the purchased reward from the list of available rewards
+                    this.state.rewards.splice(rewardIndex, 1); 
+                    
                     this.showMessageModal(`ซื้อ "${reward.name}" สำเร็จแล้ว!`, 'สำเร็จ');
                     this.saveDataToLocalStorage();
                     this.render();
@@ -1908,10 +1974,10 @@
                 if (this.state.purchasedRewards.length > 0) {
                     [...this.state.purchasedRewards].reverse().forEach(pReward => { // Show newest first
                         purchasedRewardsGrid.innerHTML += `
-                            <div class="border earth-border p-3 rounded-lg earth-bg-accent-green text-white">
+                            <div class="border earth-border p-3 rounded-lg bg-[#D9E3D6] ${this.state.currentView === 'rewards-view' ? 'text-gray-800' : 'text-white'}">
                                 <h3 class="font-bold">${pReward.name}</h3>
-                                <p class="text-xs text-green-100">ซื้อเมื่อ: ${pReward.purchaseDate}</p>
-                                <p class="text-xs text-green-100">${pReward.description}</p>
+                                <p class="text-xs ${this.state.currentView === 'rewards-view' ? 'text-gray-700' : 'text-green-100'}">ซื้อเมื่อ: ${pReward.purchaseDate}</p>
+                                <p class="text-xs ${this.state.currentView === 'rewards-view' ? 'text-gray-700' : 'text-green-100'}">${pReward.description}</p>
                             </div>
                         `;
                     });
