@@ -1,0 +1,2121 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gamified Study Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Chosen Palette: Earth Tone Minimal (Beige, Muted Green, Terracotta, Light Gray) -->
+    <!-- Application Structure Plan: A single-page application with a tab-based navigation system. The main sections are 'Dashboard', 'Tasks & Assignments', 'Study & Prep', and 'Level & Rewards'. The user flow starts at the Dashboard, encouraging a quick check of progress and upcoming items, then allows drilling down into specific management tasks. -->
+    <!-- Visualization & Content Choices: 
+        - Dashboard: Dynamic text blocks for stats, a Chart.js Donut chart for task status, a dynamically generated HTML table for deadlines.
+        - Tasks/Exams/Study: Interactive HTML tables. User interaction is handled via forms for adding data and buttons/selects for updating status.
+        - Gamification: Progress bars are used for XP. Reward/Achievement lists use dynamic classes to show status. Section for XP/Gold earning conditions provides clear rules for gamification.
+    -->
+
+    <style>
+        body {
+            font-family: 'IBM Plex Sans Thai', sans-serif;
+            background-color: #FDF6E3; /* Cream background */
+        }
+        .earth-bg-main { background-color: #FDF6E3; } /* Cream */
+        .earth-bg-card { background-color: #FFF8E7; } /* Light Beige */
+        .earth-bg-header { background-color: #E8E0D1; } /* Darker Beige */
+        .earth-text-dark { color: #4F4F4F; }
+        .earth-text-green { color: #556B2F; } /* Olive Drab */
+        .earth-accent-green { background-color: #A2B49D; } /* Muted Green */
+        .earth-accent-terracotta { background-color: #CDA8A0; } /* Terracotta */
+        .earth-accent-blue { background-color: #A7B4B8; } /* Dusty Blue */
+        .earth-border { border-color: #DCDCDC; }
+
+        /* Button Base Styles for enabled state */
+        .btn-green-base { background-color: #556B2F; color: white; } /* Olive Drab - the dark green */
+        .btn-green-hover:hover { 
+            background-color: #3C4A20; /* Even darker green on hover */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        } 
+
+        .btn-blue-base { background-color: #7A9096; color: white; } /* Darker Dusty Blue */
+        .btn-blue-hover:hover { 
+            background-color: #4A5A60; /* Even darker Dusty Blue on hover */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .btn-terracotta-base { background-color: #D99285; color: white; } /* Darker Terracotta */
+        .btn-terracotta-hover:hover { 
+            background-color: #AE6B5C; /* Even darker Terracotta on hover */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        /* Disabled state - overrides base styles */
+        button:disabled, button[disabled] {
+            background-color: #D3D3D3 !important; /* Light gray */
+            color: #888888 !important; /* Darker gray text */
+            cursor: not-allowed !important;
+            opacity: 0.8 !important;
+            box-shadow: none !important; /* No shadow when disabled */
+        }
+
+        .tab-btn {
+            transition: all 0.3s ease;
+        }
+        .tab-btn.active {
+            border-bottom-color: #556B2F;
+            color: #556B2F;
+            font-weight: 600;
+        }
+        .view {
+            display: none;
+        }
+        .view.active {
+            display: block;
+        }
+        .progress-bar {
+            background-color: #E0E0E0;
+            border-radius: 9999px;
+            overflow: hidden;
+        }
+        .progress-bar-inner {
+            background-color: #A2B49D;
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+        .achievement-card.unlocked {
+            background-color: #A2B49D;
+            color: white;
+        }
+        .achievement-card.unlocked .achievement-desc {
+            color: #FDF6E3;
+        }
+         /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #FDF6E3;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #A2B49D;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #556B2F;
+        }
+        .class-cell-content {
+            font-size: 0.75rem; /* text-xs */
+            line-height: 1rem; /* leading-tight */
+        }
+        /* Responsive chart container */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 200px; /* Base max-width */
+            height: 200px; /* Base height */
+            margin-left: auto;
+            margin-right: auto;
+        }
+        @media (min-width: 768px) { /* md breakpoint */
+            .chart-container {
+                max-width: 240px;
+                height: 240px;
+            }
+        }
+        @media (min-width: 1024px) { /* lg breakpoint */
+            .chart-container {
+                max-width: 280px;
+                height: 280px;
+            }
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: #FFF8E7;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 500px;
+            transform: translateY(-20px);
+            opacity: 0;
+            transition: all 0.3s ease-out;
+            position: relative;
+        }
+        .modal-overlay.active .modal-content {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .modal-overlay:not(.active) .modal-content {
+            transform: translateY(-20px);
+            opacity: 0;
+        }
+
+        /* Custom Message Modal Specific Styles */
+        #message-modal-content {
+            text-align: center;
+        }
+        #message-modal-content h3 {
+            font-size: 1.25rem; /* text-xl */
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+        #message-modal-content p {
+            font-size: 1rem; /* text-base */
+            margin-bottom: 1.5rem;
+        }
+        #message-modal-content button {
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="earth-bg-main earth-text-dark">
+
+    <div class="container mx-auto p-4 md:p-6">
+        
+        <header class="text-center mb-6">
+            <h1 class="text-3xl md:text-4xl font-bold earth-text-green">Gamified Study Tracker</h1>
+            <p class="text-md mt-1" id="player-name-display"></p>
+            <p class="text-sm mt-1" id="student-info-display"></p>
+            <button id="edit-profile-btn" class="text-sm earth-text-green underline mt-2 hover:text-green-800">แก้ไขข้อมูลผู้ใช้</button>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="flex justify-center border-b-2 earth-border mb-6">
+            <button class="tab-btn active text-lg py-2 px-4 md:px-6 border-b-4 border-transparent" data-view="dashboard-view">Dashboard</button>
+            <button class="tab-btn text-lg py-2 px-4 md:px-6 border-b-4 border-transparent" data-view="tasks-view">Tasks & Assignments</button>
+            <button class="tab-btn text-lg py-2 px-4 md:px-6 border-b-4 border-transparent" data-view="study-view">Study & Prep</button>
+            <button class="tab-btn text-lg py-2 px-4 md:px-6 border-b-4 border-transparent" data-view="rewards-view">Level & Rewards</button>
+        </nav>
+
+        <main id="app-main-content">
+            <!-- Dashboard View -->
+            <div id="dashboard-view" class="view active">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Gamification Stats -->
+                    <div class="earth-bg-card p-4 rounded-lg shadow-md col-span-1">
+                        <h2 class="font-bold text-lg mb-4">Player Stats</h2>
+                        <div class="space-y-3">
+                            <div>
+                                <span class="font-semibold">Level:</span>
+                                <span id="level-display" class="font-bold text-xl earth-text-green float-right">1</span>
+                            </div>
+                            <div>
+                                <span class="font-semibold">Total XP:</span>
+                                <span id="xp-display" class="font-bold float-right">0</span>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="font-semibold text-sm">XP Progress</label>
+                                <div class="progress-bar h-4 w-full">
+                                    <div id="xp-progress-bar" class="progress-bar-inner"></div>
+                                </div>
+                                <div class="text-xs text-right" id="xp-progress-text">0 / 100</div>
+                            </div>
+                            <div>
+                                <span class="font-semibold">Gold:</span>
+                                <span id="gold-display" class="font-bold text-lg earth-text-green float-right">0</span>
+                            </div>
+                            <!-- Added Reset Gold Button -->
+                            <button id="reset-gold-btn" class="w-full mt-4 font-bold py-2 px-4 rounded-md btn-terracotta-base btn-terracotta-hover">รีเซ็ต Gold</button>
+                            <!-- Added Reset All Data Button -->
+                            <button id="reset-all-data-btn" class="w-full mt-2 font-bold py-2 px-4 rounded-md btn-blue-base btn-blue-hover">รีเซ็ตข้อมูลทั้งหมด</button>
+                        </div>
+                    </div>
+
+                    <!-- Overall Progress -->
+                    <div class="earth-bg-card p-4 rounded-lg shadow-md col-span-1 flex flex-col items-center justify-center">
+                        <h2 class="font-bold text-lg mb-2">Overall Progress</h2>
+                        <div class="chart-container">
+                             <canvas id="progressChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Task Status Breakdown -->
+                     <div class="earth-bg-card p-4 rounded-lg shadow-md col-span-1 flex flex-col items-center justify-center">
+                        <h2 class="font-bold text-lg mb-2">Task Status</h2>
+                        <div class="chart-container">
+                             <canvas id="statusChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Upcoming Deadlines -->
+                    <div class="earth-bg-card p-4 rounded-lg shadow-md col-span-1 md:col-span-2 lg:col-span-3">
+                        <h2 class="font-bold text-lg mb-4">Upcoming Deadlines (Next 7 Days)</h2>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="earth-bg-header">
+                                    <tr>
+                                        <th class="p-2">Task</th>
+                                        <th class="p-2">Subject</th>
+                                        <th class="p-2">Due Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="upcoming-deadlines-table">
+                                    <!-- Dynamic content here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tasks & Assignments View -->
+            <div id="tasks-view" class="view">
+                <!-- Add Task Form -->
+                <div class="earth-bg-card p-4 rounded-lg shadow-md mb-6">
+                    <h2 class="font-bold text-lg mb-4">เพิ่มงาน / การบ้านใหม่</h2>
+                    <form id="add-task-form" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-end">
+                        <div class="flex flex-col">
+                            <label for="task-name" class="text-sm font-semibold mb-1">ชื่องาน</label>
+                            <input type="text" id="task-name" class="p-2 border earth-border rounded-md" required>
+                        </div>
+                        <div class="flex flex-col">
+                            <label for="task-subject" class="text-sm font-semibold mb-1">วิชา</label>
+                            <select id="task-subject" class="p-2 border earth-border rounded-md bg-white" required></select>
+                        </div>
+                        <div class="flex flex-col">
+                            <label for="task-due-date" class="text-sm font-semibold mb-1">วันครบกำหนด</label>
+                            <input type="date" id="task-due-date" class="p-2 border earth-border rounded-md" required>
+                        </div>
+                        <div class="flex flex-col">
+                            <label for="task-priority" class="text-sm font-semibold mb-1">ความสำคัญ</label>
+                            <select id="task-priority" class="p-2 border earth-border rounded-md bg-white" required></select>
+                        </div>
+                        <div class="flex flex-col">
+                            <label for="task-effort" class="text-sm font-semibold mb-1">ประมาณการ (1-10)</label>
+                            <input type="number" id="task-effort" min="1" max="10" value="5" class="p-2 border earth-border rounded-md" required>
+                        </div>
+                        <div class="md:col-span-3 lg:col-span-5">
+                            <button type="submit" id="add-task-btn" class="w-full md:w-auto font-bold py-2 px-4 rounded-md btn-green-base btn-green-hover" disabled>เพิ่มงาน</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Tasks Table -->
+                <div class="earth-bg-card p-4 rounded-lg shadow-md">
+                    <h2 class="font-bold text-lg mb-4">งานทั้งหมด</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm whitespace-nowrap">
+                            <thead class="earth-bg-header">
+                                <tr>
+                                    <th class="p-2">ชื่องาน</th>
+                                    <th class="p-2">วิชา</th>
+                                    <th class="p-2">วันครบกำหนด</th>
+                                    <th class="p-2">วันที่เหลือ</th>
+                                    <th class="p-2">สถานะ</th>
+                                    <th class="p-2">ความสำคัญ</th>
+                                    <th class="p-2">เกรด</th>
+                                    <th class="p-2">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tasks-table">
+                                <!-- Dynamic content here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Study & Prep View -->
+            <div id="study-view" class="view">
+                 <div class="grid grid-cols-1 lg:grid-cols-1 gap-6">
+                    <!-- Class Schedule -->
+                    <div class="earth-bg-card p-4 rounded-lg shadow-md mb-6">
+                        <h2 class="font-bold text-lg mb-4">ตารางเรียน</h2>
+                        <form id="add-class-form" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end mb-4">
+                            <div class="flex flex-col">
+                                <label for="class-day" class="text-sm font-semibold mb-1">วัน</label>
+                                <select id="class-day" class="p-2 border earth-border rounded-md bg-white" required>
+                                    <option value="">เลือกวัน</option>
+                                    <option value="จันทร์">จันทร์</option>
+                                    <option value="อังคาร">อังคาร</option>
+                                    <option value="พุธ">พุธ</option>
+                                    <option value="พฤหัสบดี">พฤหัสบดี</option>
+                                    <option value="ศุกร์">ศุกร์</option>
+                                    <option value="เสาร์">เสาร์</option>
+                                    <option value="อาทิตย์">อาทิตย์</option>
+                                </select>
+                            </div>
+                            <div class="flex flex-col">
+                                <label for="class-time" class="text-sm font-semibold mb-1">เวลา</label>
+                                <select id="class-time" class="p-2 border earth-border rounded-md bg-white" required>
+                                    <option value="">เลือกเวลา</option>
+                                    <option value="8:00-8:50">8:00-8:50</option>
+                                    <option value="9:00-9:50">9:00-9:50</option>
+                                    <option value="10:00-10:50">10:00-10:50</option>
+                                    <option value="11:00-11:50">11:00-11:50</option>
+                                    <option value="12:00-12:50">12:00-12:50</option>
+                                    <option value="13:00-13:50">13:00-13:50</option>
+                                    <option value="14:00-14:50">14:00-14:50</option>
+                                    <option value="15:00-15:50">15:00-15:50</option>
+                                    <option value="16:00-16:50">16:00-16:50</option>
+                                </select>
+                            </div>
+                            <div class="flex flex-col">
+                                <label for="class-display-name" class="text-sm font-semibold mb-1">ชื่อวิชา (แสดง)</label>
+                                <input type="text" id="class-display-name" class="p-2 border earth-border rounded-md" required>
+                            </div>
+                            <div class="flex flex-col">
+                                <label for="class-subject" class="text-sm font-semibold mb-1">วิชา (สำหรับบันทึก)</label>
+                                <select id="class-subject" class="p-2 border earth-border rounded-md bg-white" required></select>
+                            </div>
+                            <div class="flex flex-col lg:col-span-2">
+                                <label for="class-course-details" class="text-sm font-semibold mb-1">รายละเอียดคอร์ส (รหัส, ห้อง, ตึก)</label>
+                                <input type="text" id="class-course-details" class="p-2 border earth-border rounded-md" placeholder="เช่น 252182-3 (3) 2, SC2-211 SC 2">
+                            </div>
+                             <div class="md:col-span-3 lg:col-span-4">
+                                <button type="submit" id="add-class-btn" class="w-full md:w-auto font-bold py-2 px-4 rounded-md btn-green-base btn-green-hover" disabled>เพิ่มตารางเรียน</button>
+                            </div>
+                        </form>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm whitespace-nowrap">
+                                <thead class="earth-bg-header">
+                                    <tr>
+                                        <th class="p-2">เวลา</th>
+                                        <th class="p-2">จันทร์</th>
+                                        <th class="p-2">อังคาร</th>
+                                        <th class="p-2">พุธ</th>
+                                        <th class="p-2">พฤหัสบดี</th>
+                                        <th class="p-2">ศุกร์</th>
+                                        <th class="p-2">เสาร์</th>
+                                        <th class="p-2">อาทิตย์</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="class-schedule-table">
+                                    <!-- Dynamic content here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Exam Planner Mid-term -->
+                    <div class="earth-bg-card p-4 rounded-lg shadow-md">
+                        <h2 class="font-bold text-lg mb-4">วางแผนสอบ (กลางภาค)</h2>
+                        <!-- Add Exam Form -->
+                        <form id="add-exam-form" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <input type="text" id="exam-name" placeholder="ชื่อสอบ" class="p-2 border earth-border rounded-md" required>
+                            <input type="date" id="exam-date" class="p-2 border earth-border rounded-md" required>
+                            <select id="exam-subject" class="p-2 border earth-border rounded-md bg-white" required></select>
+                            <select id="exam-type" class="p-2 border earth-border rounded-md bg-white" required>
+                                <option value="Midterm">กลางภาค</option>
+                                <option value="Final">ปลายภาค / ปฏิบัติการ</option>
+                            </select>
+                            <div class="md:col-span-2">
+                                <button type="submit" id="add-exam-btn" class="w-full md:w-auto font-bold py-2 px-4 rounded-md btn-green-base btn-green-hover" disabled>เพิ่มการสอบ</button>
+                            </div>
+                        </form>
+                         <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="earth-bg-header">
+                                    <tr>
+                                        <th class="p-2">สอบ</th>
+                                        <th class="p-2">วิชา</th>
+                                        <th class="p-2">วันที่</th>
+                                        <th class="p-2">สถานะ</th>
+                                        <th class="p-2">คะแนน</th>
+                                        <th class="p-2">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="midterm-exams-table"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                     <!-- Exam Planner Final/Lab -->
+                    <div class="earth-bg-card p-4 rounded-lg shadow-md">
+                        <h2 class="font-bold text-lg mb-4">วางแผนสอบ (ปลายภาค / ปฏิบัติการ)</h2>
+                         <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="earth-bg-header">
+                                    <tr>
+                                        <th class="p-2">สอบ</th>
+                                        <th class="p-2">วิชา</th>
+                                        <th class="p-2">วันที่</th>
+                                        <th class="p-2">สถานะ</th>
+                                        <th class="p-2">คะแนน</th>
+                                        <th class="p-2">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="final-exams-table"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+
+                    <!-- Study Session Tracker -->
+                    <div class="earth-bg-card p-4 rounded-lg shadow-md">
+                        <h2 class="font-bold text-lg mb-4">บันทึกการเรียนรู้</h2>
+                        <!-- Add Study Session Form -->
+                         <form id="add-study-form" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <select id="study-subject" class="p-2 border earth-border rounded-md bg-white" required></select>
+                            <input type="number" id="study-duration" placeholder="ระยะเวลา (นาที)" class="p-2 border earth-border rounded-md" required>
+                             <div class="md:col-span-2">
+                                <button type="submit" id="add-study-btn" class="w-full md:w-auto font-bold py-2 px-4 rounded-md btn-green-base btn-green-hover" disabled>บันทึกการเรียน</button>
+                            </div>
+                        </form>
+                         <div class="overflow-x-auto">
+                             <table class="w-full text-left text-sm">
+                                <thead class="earth-bg-header">
+                                    <tr>
+                                        <th class="p-2">วันที่</th>
+                                        <th class="p-2">วิชา</th>
+                                        <th class="p-2">ระยะเวลา</th>
+                                        <th class="p-2">XP ที่ได้รับ</th>
+                                        <th class="p-2">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="study-sessions-table"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Level & Rewards View -->
+            <div id="rewards-view" class="view">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Reward Shop -->
+                    <div class="earth-bg-card p-4 rounded-lg shadow-md">
+                        <h2 class="font-bold text-lg mb-4">ร้านค้าแลกรางวัล</h2>
+                        <p class="text-sm mb-4">ใช้ Gold ของคุณเพื่อปลดล็อกรางวัลในชีวิตจริง!</p>
+
+                        <!-- Add Reward Form -->
+                        <div class="mb-4">
+                            <h3 class="font-bold text-md mb-2">เพิ่มรางวัลใหม่</h3>
+                            <form id="add-reward-form" class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                                <input type="text" id="reward-name" placeholder="ชื่อรางวัล" class="p-2 border earth-border rounded-md" required>
+                                <input type="number" id="reward-cost" placeholder="ค่าใช้จ่าย Gold" class="p-2 border earth-border rounded-md" min="1" required>
+                                <div class="md:col-span-2">
+                                    <input type="text" id="reward-description" placeholder="คำอธิบายรางวัล (ไม่บังคับ)" class="p-2 border earth-border rounded-md w-full">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <button type="submit" id="add-reward-btn" class="w-full md:w-auto font-bold py-2 px-4 rounded-md btn-green-base btn-green-hover" disabled>เพิ่มรางวัล</button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <div id="reward-shop-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- Dynamic content here -->
+                        </div>
+                    </div>
+
+                     <!-- Purchased Rewards -->
+                     <div class="earth-bg-card p-4 rounded-lg shadow-md">
+                        <h2 class="font-bold text-lg mb-4">รางวัลที่ซื้อแล้ว</h2>
+                        <div id="purchased-rewards-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                           <!-- Dynamic content here -->
+                        </div>
+                    </div>
+
+                     <!-- Achievements -->
+                    <div class="earth-bg-card p-4 rounded-lg shadow-md">
+                        <h2 class="font-bold text-lg mb-4">ความสำเร็จ</h2>
+                        <div id="achievements-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                           <!-- Dynamic content here -->
+                        </div>
+                    </div>
+
+                    <!-- XP & Gold Earning Conditions -->
+                    <div class="earth-bg-card p-4 rounded-lg shadow-md col-span-1 md:col-span-2">
+                        <h2 class="font-bold text-lg mb-4">🎯 ระบบรางวัล XP & Gold (เหมือนเกม)</h2>
+                        <ul class="list-disc list-inside text-sm space-y-2">
+                            <li><strong>🔹 ทำภารกิจ ➤ ได้ XP เพื่ออัปเลเวล</strong></li>
+                            <li><strong>🔹 สะสม Gold ➤ แลกของรางวัลในร้านค้า</strong></li>
+                            <li><strong>🧱 ภารกิจ 1: เคลียร์ “งาน” ให้เสร็จ</strong></li>
+                            <ul class="list-disc list-inside text-sm ml-4">
+                                <li>เมื่อคุณทำงานสำเร็จ แล้วเปลี่ยนสถานะเป็น Completed</li>
+                                <li>🎁 ได้รับรางวัลทันที:
+                                    <ul class="list-disc list-inside text-sm ml-4">
+                                        <li>XP = ความพยายาม × 10</li>
+                                        <li>Gold = ความพยายาม × 5</li>
+                                    </ul>
+                                </li>
+                                <li>🧪 ตัวอย่าง:
+                                    <ul class="list-disc list-inside text-sm ml-4">
+                                        <li>งานยากระดับ 2 ➤ 💥 ได้ 20 XP | 💰 ได้ 10 Gold</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                            <li><strong>📚 ภารกิจ 2: บันทึก “การเรียนรู้”</strong></li>
+                            <ul class="list-disc list-inside text-sm ml-4">
+                                <li>เมื่อคุณเรียนหนังสือแล้วบันทึกเวลาในระบบ</li>
+                                <li>🎁 ได้รับรางวัลตามเวลาที่ใช้:
+                                    <ul class="list-disc list-inside text-sm ml-4">
+                                        <li>XP = นาที × 0.5</li>
+                                        <li>Gold = นาที × 0.2</li>
+                                    </ul>
+                                </li>
+                                <li>⏱ ตัวอย่าง:
+                                    <ul class="list-disc list-inside text-sm ml-4">
+                                        <li>เรียน 60 นาที ➤ 💥 ได้ 30 XP | 💰 ได้ 12 Gold</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                            <li><strong>📝 ภารกิจ 3: รายงาน “คะแนนสอบ”</strong></li>
+                            <ul class="list-disc list-inside text-sm ml-4">
+                                <li>เมื่อคุณกรอกคะแนนที่ได้หลังสอบ</li>
+                                <li>🎁 ได้รับ XP ตามคะแนน:
+                                    <ul class="list-disc list-inside text-sm ml-4">
+                                        <li>XP = คะแนน × 2</li>
+                                    </ul>
+                                </li>
+                                <li>🧠 ตัวอย่าง:
+                                    <ul class="list-disc list-inside text-sm ml-4">
+                                        <li>สอบได้ 75 คะแนน ➤ 💥 ได้ 150 XP</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                            <li><strong>🎮 ใช้ XP ทำอะไร?</strong></li>
+                            <ul class="list-disc list-inside text-sm ml-4">
+                                <li>🆙 เพิ่มเลเวลผู้เล่น</li>
+                                <li>🏅 ปลดล็อกรางวัล / แสดงความสำเร็จ</li>
+                            </ul>
+                            <li><strong>💰 ใช้ Gold ทำอะไร?</strong></li>
+                            <ul class="list-disc list-inside text-sm ml-4">
+                                <li>� แลกรางวัลในร้านค้า</li>
+                                <li>🎁 ใช้ซื้อของขวัญให้ตัวเองตามระบบ Motivation</li>
+                            </ul>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Profile Edit Modal -->
+        <div id="profile-modal-overlay" class="modal-overlay hidden">
+            <div id="profile-modal-content" class="modal-content">
+                <h2 class="font-bold text-xl mb-4">แก้ไขข้อมูลผู้ใช้</h2>
+                
+                <!-- Current User Info & Edit Form -->
+                <div id="current-user-section" class="mb-6">
+                    <p class="mb-2"><span class="font-semibold">ผู้ใช้ปัจจุบัน:</span> <span id="current-user-modal-display"></span></p>
+                    <form id="edit-user-form" class="space-y-3">
+                        <div class="flex flex-col">
+                            <label for="edit-user-name" class="text-sm font-semibold mb-1">ชื่อผู้ใช้</label>
+                            <input type="text" id="edit-user-name" class="p-2 border earth-border rounded-md" required>
+                        </div>
+                        <button type="submit" class="w-full md:w-auto font-bold py-2 px-4 rounded-md btn-green-base btn-green-hover">บันทึกชื่อผู้ใช้</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reset Data Modal -->
+        <div id="reset-data-modal-overlay" class="modal-overlay hidden">
+            <div id="reset-data-modal-content" class="modal-content">
+                <h2 class="font-bold text-xl mb-4">เลือกรีเซ็ตข้อมูล</h2>
+                <form id="reset-data-form" class="space-y-3">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="reset-xp" name="reset-option" value="xp" class="mr-2">
+                        <label for="reset-xp" class="text-base">XP และ Level</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="reset-gold" name="reset-option" value="gold" class="mr-2">
+                        <label for="reset-gold" class="text-base">Gold</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="reset-tasks" name="reset-option" value="tasks" class="mr-2">
+                        <label for="reset-tasks" class="text-base">งาน / การบ้านที่เพิ่มเอง</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="reset-exams" name="reset-option" value="exams" class="mr-2">
+                        <label for="reset-exams" class="text-base">ข้อมูลการสอบที่เพิ่มเอง (คะแนนและสถานะจะถูกรีเซ็ตสำหรับรายการที่กำหนดไว้ล่วงหน้า)</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="reset-study-sessions" name="reset-option" value="studySessions" class="mr-2">
+                        <label for="reset-study-sessions" class="text-base">บันทึกการเรียนรู้</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="reset-user-rewards" name="reset-option" value="userRewards" class="mr-2">
+                        <label for="reset-user-rewards" class="text-base">รางวัลที่เพิ่มเอง</label>
+                    </div>
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button type="button" id="cancel-reset-btn" class="font-bold py-2 px-4 rounded-md btn-terracotta-base btn-terracotta-hover">ยกเลิก</button>
+                        <button type="submit" id="confirm-reset-btn" class="font-bold py-2 px-4 rounded-md btn-green-base btn-green-hover">ยืนยันการรีเซ็ต</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Custom Message Modal (for alerts) -->
+        <div id="message-modal-overlay" class="modal-overlay hidden">
+            <div id="message-modal-content" class="modal-content">
+                <h3 id="message-modal-title"></h3>
+                <p id="message-modal-text"></p>
+                <button id="message-modal-ok-btn" class="font-bold py-2 px-4 rounded-md btn-green-base btn-green-hover">ตกลง</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module">
+        /**
+         * StudyTrackerApp class to manage study sessions, data storage, and UI updates.
+         */
+        class StudyTrackerApp {
+            constructor() {
+                // Initialize config and charts
+                this.config = {
+                    subjects: [], 
+                    priorities: ["Low", "Medium", "High", "Urgent"],
+                    statuses: ["Not Started", "In Progress", "Completed", "Graded"],
+                    levelingTable: {
+                        1: 0, 2: 100, 3: 250, 4: 450, 5: 700, 6: 1000, 7: 1350, 8: 1750, 9: 2200, 10: 2700
+                    },
+                    achievements: [
+                        { id: 'achieve1', name: "First Task Completed", criteria: () => this.state.tasks.filter(t => t.status === 'Completed').length >= 1, unlocked: false, description: "ทำภารกิจให้สำเร็จอย่างน้อย 1 ครั้ง" },
+                        { id: 'achieve2', name: "Level 5 Achieved", criteria: () => this.state.user.level >= 5, unlocked: false, description: "อัปเลเวลผู้เล่นให้ถึงเลเวล 5" },
+                        { id: 'achieve3', name: "10 Tasks Done", criteria: () => this.state.tasks.filter(t => t.status === 'Completed').length >= 10, unlocked: false, description: "ทำภารกิจให้สำเร็จครบ 10 ครั้ง" },
+                        { id: 'achieve4', name: "Study Master", criteria: () => this.state.studySessions.reduce((total, s) => total + s.duration, 0) >= 600, unlocked: false, description: "สะสมเวลาเรียนให้ครบ 600 นาที (10 ชั่วโมง)" },
+                    ]
+                };
+                this.charts = {
+                    progressChart: null,
+                    statusChart: null
+                };
+
+                // Initialize hardcoded data FIRST, so it's defined before being used
+                this.initHardcodedData();
+
+                // Initialize currentUserId. If none exists, create a new one.
+                // This ID is used for localStorage key, but the user *displayed* data is fixed.
+                this.currentUserId = localStorage.getItem('currentUserId');
+                if (!this.currentUserId) {
+                    this.currentUserId = crypto.randomUUID();
+                    localStorage.setItem('currentUserId', this.currentUserId);
+                }
+
+                // Initialize state for the current (or newly created) user
+                this.state = this.initializeStateForUser(this.currentUserId);
+                this.state.currentView = 'dashboard-view'; // Always start on dashboard
+
+                this.setupEventListeners();
+                this.populateDropdowns(); 
+                this.setupFormValidation();
+                this.render(); // Initial render based on loaded state/view
+                this.updateUserIdDisplay(); // Ensure user info is displayed on load
+            }
+
+            /**
+             * Shows a custom message modal.
+             * @param {string} message - The message to display.
+             * @param {string} [title='แจ้งเตือน'] - The title of the modal.
+             * @param {function} [onOk=null] - Callback function when OK is clicked.
+             */
+            showMessageModal(message, title = 'แจ้งเตือน', onOk = null) {
+                document.getElementById('message-modal-title').textContent = title;
+                document.getElementById('message-modal-text').textContent = message;
+                document.getElementById('message-modal-overlay').classList.add('active');
+                document.getElementById('message-modal-overlay').classList.remove('hidden');
+                document.getElementById('app-main-content').classList.add('hidden'); // Hide main app content
+
+                const okButton = document.getElementById('message-modal-ok-btn');
+                const closeHandler = () => {
+                    this.hideMessageModal();
+                    if (onOk && typeof onOk === 'function') {
+                        onOk();
+                    }
+                    okButton.removeEventListener('click', closeHandler); // Clean up event listener
+                };
+                okButton.addEventListener('click', closeHandler);
+            }
+
+            /**
+             * Hides the custom message modal.
+             */
+            hideMessageModal() {
+                document.getElementById('message-modal-overlay').classList.remove('active');
+                document.getElementById('message-modal-overlay').classList.add('hidden');
+                document.getElementById('app-main-content').classList.remove('hidden'); // Show main app content
+            }
+
+            /**
+             * Returns a clean initial state for a new or unauthenticated user,
+             * with hardcoded fixed user details.
+             */
+            getCleanInitialState() {
+                return {
+                    currentView: 'dashboard-view', // Default view when logged in
+                    user: {
+                        id: null, // Will be set by currentUserId
+                        name: 'กฤษณพล มีแก้ว',
+                        studentId: '68360137', 
+                        faculty: 'คณะวิศวกรรมศาสตร์',
+                        major: 'วิศวกรรมอุตสาหการ - แผน 1 : แบบปกติ',
+                        academicYear: '2568',
+                        advisor: '', 
+                        period: '9/6/2568 - 15/6/2568',
+                        level: 1,
+                        xp: 0,
+                        gold: 0,
+                    },
+                    tasks: [], 
+                    exams: [], 
+                    studySessions: [], 
+                    classSchedule: [], 
+                    rewards: [],
+                    purchasedRewards: [] // New: To store purchased rewards
+                };
+            }
+
+            /**
+             * Initializes hardcoded data that should always be present regardless of user.
+             * This method is called once in constructor, and its result is then merged.
+             */
+            initHardcodedData() {
+                // Hardcoded class schedule data
+                this._hardcodedClassSchedule = [
+                    { id: 'cls1', day: 'จันทร์', time: '8:00-8:50', course: '252182-3 (3) 2, SC2-211 SC 2', displayName: 'Calculus 1', subject: 'แคลคูลัส 1', isHardcoded: true },
+                    { id: 'cls2', day: 'จันทร์', time: '9:00-9:50', course: '301102-1 (1) 1, EN 509 EN', displayName: 'Introduction to Industrial Engineering Profession', subject: 'แนะนำอาชีพวิศวกรรมอุตสาหการ', isHardcoded: true },
+                    { id: 'cls3', day: '10:00-10:50', course: '256101-5 (3) 1, SC1-311 SC 1', displayName: 'Principle of Chemistry', subject: 'หลักเคมี', isHardcoded: true },
+                    { id: 'cls4', day: 'อังคาร', time: '8:00-8:50', course: '256111-2 (1) 5, SC4-511 SC 4', displayName: 'Principle of Chemistry Laboratory', subject: 'ปฏิบัติการหลักเคมี', isHardcoded: true },
+                    { id: 'cls5', day: 'พุธ', time: '8:00-8:50', course: '261101-5 (3) 2, SC1-213 SC 1', displayName: 'Physics 1', subject: 'ฟิสิกส์ 1', isHardcoded: true },
+                    { id: 'cls6', day: 'พุธ', time: '14:00-14:50', course: '261111-2 (1) 4, SC5-103 SC 5', displayName: 'Laboratory in Physics 1', isHardcoded: true, subject: 'ปฏิบัติการฟิสิกส์ 1' },
+                    { id: 'cls7', day: 'พุธ', time: '15:00-15:50', course: '256101-5 (3) 1, SC1-311 SC 1', displayName: 'Principle of Chemistry', subject: 'หลักเคมี', isHardcoded: true },
+                    { id: 'cls8', day: 'พฤหัสบดี', time: '15:00-15:50', course: '252182-3 (3) 2, SC2-211 SC 2', displayName: 'Calculus 1', subject: 'แคลคูลัส 1', isHardcoded: true },
+                    { id: 'cls9', day: 'ศุกร์', time: '12:00-12:50', course: '261101-5 (3) 2, SC1-213 SC 1', displayName: 'Physics 1', subject: 'ฟิสิกส์ 1', isHardcoded: true }
+                ];
+
+                // Hardcoded exam data
+                this._hardcodedExams = [
+                    { id: 'exam1', name: 'Calculus 1', subject: 'แคลคูลัส 1', date: this.parseThaiDateToISO('27 ส.ค. 2568'), time: '08:00-11:00', location: 'C', type: 'Midterm', status: 'Planned', score: null, isHardcoded: true },
+                    { id: 'exam2', name: 'Principle of Chemistry', subject: 'หลักเคมี', date: this.parseThaiDateToISO('28 ส.ค. 2568'), time: '08:00-11:00', location: 'C', type: 'Midterm', status: 'Planned', score: null, isHardcoded: true },
+                    { id: 'exam3', name: 'Physics 1', subject: 'ฟิสิกส์ 1', date: this.parseThaiDateToISO('26 ส.ค. 2568'), time: '12:00-15:00', location: 'C', type: 'Midterm', status: 'Planned', score: null, isHardcoded: true },
+                    { id: 'exam4', name: 'Calculus 1 (Final)', subject: 'แคลคูลัส 1', date: this.parseThaiDateToISO('15 ต.ค. 2568'), time: '08:00-11:00', location: 'C', type: 'Final', status: 'Planned', score: null, isHardcoded: true },
+                    { id: 'exam5', name: 'Principle of Chemistry (Final)', subject: 'หลักเคมี', date: this.parseThaiDateToISO('16 ต.ค. 2568'), time: '08:00-11:00', location: 'C', type: 'Final', status: 'Planned', score: null, isHardcoded: true },
+                    { id: 'exam6', name: 'Principle of Chemistry Laboratory', subject: 'ปฏิบัติการหลักเคมี', date: this.parseThaiDateToISO('21 ต.ค. 2568'), time: '12:00-14:00', location: 'C', type: 'Final', status: 'Planned', score: null, isHardcoded: true },
+                    { id: 'exam7', name: 'Physics 1 (Final)', subject: 'ฟิสิกส์ 1', date: this.parseThaiDateToISO('14 ต.ค. 2568'), time: '12:00-15:00', location: 'C', type: 'Final', status: 'Planned', score: null, isHardcoded: true },
+                    { id: 'exam8', name: 'Laboratory in Physics 1', subject: 'ปฏิบัติการฟิสิกส์ 1', date: this.parseThaiDateToISO('24 ต.ค. 2568'), time: '12:00-14:00', location: 'C', type: 'Final', status: 'Planned', score: null, isHardcoded: true },
+                    { id: 'exam9', name: 'Introduction to Industrial Engineering Profession', subject: 'แนะนำอาชีพวิศวกรรมอุตสาหการ', date: null, time: null, location: null, type: 'Midterm', status: 'Planned', score: null, isHardcoded: true } 
+                ];
+                
+                // Hardcoded rewards data
+                this._hardcodedRewards = [
+                    { id: 1, name: "ดูหนัง 1 เรื่อง", cost: 100, description: "พักผ่อนจากการเรียน", isHardcoded: true },
+                    { id: 2, name: "สั่งอาหารโปรด", cost: 200, description: "กินให้อร่อย", isHardcoded: true },
+                    { id: 3, name: "พักผ่อนทั้งวัน", cost: 300, description: "หยุดพัก Recharge", isHardcoded: true },
+                    { id: 4, name: "ซื้อของที่อยากได้", cost: 500, description: "ให้รางวัลตัวเอง", isHardcoded: true }
+                ];
+            }
+
+            /**
+             * Initializes the application state for a given user ID.
+             * Merges stored user data with hardcoded default data, ensuring fixed user details.
+             * @param {string} userId - The ID of the user whose state to load.
+             * @returns {Object} The initialized state object for the user.
+             */
+            initializeStateForUser(userId) {
+                let userState = this.getCleanInitialState(); // Gets the fixed user details and default values
+                userState.user.id = userId; // Assign the unique ID for localStorage
+
+                // Ensure hardcoded data is always present as a base
+                userState.classSchedule = [...this._hardcodedClassSchedule];
+                userState.exams = [...this._hardcodedExams];
+                // Deep copy achievements to ensure 'unlocked' status is specific to the user's state
+                userState.achievements = this.config.achievements.map(ach => ({ ...ach }));
+
+                const storedUserData = localStorage.getItem(`studyTrackerData_${userId}`);
+                if (storedUserData) {
+                    const loaded = JSON.parse(storedUserData);
+                    
+                    // Only merge mutable user properties (level, xp, gold) from loaded data.
+                    // Fixed user details (name, studentId, etc.) from getCleanInitialState are preserved.
+                    if (loaded.user) {
+                        userState.user.level = loaded.user.level !== undefined ? loaded.user.level : userState.user.level;
+                        userState.user.xp = loaded.user.xp !== undefined ? loaded.user.xp : userState.user.xp;
+                        // Ensure gold is an integer immediately upon loading
+                        userState.user.gold = loaded.user.gold !== undefined ? Math.floor(loaded.user.gold) : userState.user.gold;
+                        
+                        // Preserve the user's editable name if it was changed
+                        userState.user.name = loaded.user.name !== undefined ? loaded.user.name : userState.user.name;
+                    }
+                    
+                    // Merge user-added dynamic data, filtering out any hardcoded items from loaded data.
+                    userState.tasks = loaded.tasks ? loaded.tasks.filter(item => !item.isHardcoded) : [];
+                    userState.studySessions = loaded.studySessions ? loaded.studySessions.filter(item => !item.isHardcoded) : [];
+
+                    // For hardcoded items (exams, classes, rewards), update their properties (like status/score) if they exist in loaded data,
+                    // then concatenate with user-added (non-hardcoded) items from loaded data.
+                    userState.exams = userState.exams.map(hardcodedExam => {
+                        const loadedExam = (loaded.exams || []).find(e => e.id === hardcodedExam.id && e.isHardcoded);
+                        return loadedExam ? { ...hardcodedExam, ...loadedExam } : hardcodedExam;
+                    }).concat((loaded.exams || []).filter(e => !e.isHardcoded));
+
+                    userState.classSchedule = userState.classSchedule.map(hardcodedClass => {
+                        const loadedClass = (loaded.classSchedule || []).find(c => c.id === hardcodedClass.id && c.isHardcoded);
+                        return loadedClass ? { ...hardcodedClass, ...loadedClass } : hardcodedClass;
+                    }).concat((loaded.classSchedule || []).filter(c => !c.isHardcoded));
+                    
+                    // Filter out hardcoded rewards that have already been purchased and store purchased ones
+                    const loadedPurchasedRewardIds = new Set((loaded.purchasedRewards || []).map(r => r.id));
+                    userState.rewards = this._hardcodedRewards.filter(hr => !loadedPurchasedRewardIds.has(hr.id))
+                        .concat((loaded.rewards || []).filter(r => !r.isHardcoded)); // Keep user-added unpurchased rewards
+                    userState.purchasedRewards = (loaded.purchasedRewards || []); // Load purchased rewards
+                    
+                    // Update unlocked status for achievements from loaded data
+                    if (loaded.achievements) {
+                        userState.achievements = userState.achievements.map(ach => {
+                            const loadedAch = loaded.achievements.find(la => la.id === ach.id);
+                            return loadedAch ? { ...ach, unlocked: loadedAch.unlocked } : ach;
+                        });
+                    }
+                }
+                return userState;
+            }
+
+            /**
+             * Saves the current application state for the logged-in user to localStorage.
+             */
+            saveDataToLocalStorage() {
+                if (this.currentUserId) {
+                    localStorage.setItem(`studyTrackerData_${this.currentUserId}`, JSON.stringify(this.state));
+                }
+            }
+
+            /**
+             * Sets up global event listeners.
+             */
+            setupEventListeners() {
+                const elementsToBind = [
+                    { id: 'add-task-form', event: 'submit', method: this.addTask },
+                    { id: 'add-exam-form', event: 'submit', method: this.addExam },
+                    { id: 'add-study-form', event: 'submit', method: this.addStudySession },
+                    { id: 'add-class-form', event: 'submit', method: this.addClassScheduleEntry },
+                    { id: 'add-reward-form', event: 'submit', method: this.addReward },
+                    { id: 'edit-profile-btn', event: 'click', method: this.showProfileEditModal },
+                    { id: 'edit-user-form', event: 'submit', method: this.updateUserName },
+                    { id: 'reset-gold-btn', event: 'click', method: this.resetGold },
+                    { id: 'reset-all-data-btn', event: 'click', method: this.showResetDataModal },
+                    { id: 'reset-data-form', event: 'submit', method: this.processResetData },
+                    { id: 'cancel-reset-btn', event: 'click', method: this.hideResetDataModal },
+                ];
+
+                elementsToBind.forEach(({ id, event, method }) => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        // Check if the method is a function before attempting to bind it
+                        if (typeof method === 'function') {
+                            element.addEventListener(event, method.bind(this));
+                        } else {
+                            console.error(`ERROR: Method for element ${id} is NOT a function (it is ${typeof method}). This will cause TypeError.`, method);
+                        }
+                    } else {
+                        console.warn(`WARNING: Element with ID "${id}" not found in DOM.`);
+                    }
+                });
+
+                // Special case for querySelectorAll (tab buttons)
+                document.querySelectorAll('.tab-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        this.state.currentView = e.target.dataset.view;
+                        this.render();
+                    });
+                });
+            }
+
+            /**
+             * Updates the user's name from the profile edit form.
+             * @param {Event} event - The form submit event.
+             */
+            updateUserName(event) {
+                if (event) event.preventDefault();
+                const newName = document.getElementById('edit-user-name').value;
+                if (newName.trim() !== '') {
+                    this.state.user.name = newName.trim();
+                    this.saveDataToLocalStorage();
+                    this.updateUserIdDisplay(); // Update display immediately
+                    this.hideProfileEditModal();
+                    this.showMessageModal('ชื่อผู้ใช้ถูกบันทึกแล้ว!', 'สำเร็จ');
+                } else {
+                    this.showMessageModal('กรุณาป้อนชื่อผู้ใช้.', 'ข้อผิดพลาด');
+                }
+            }
+
+
+            /**
+             * Displays the profile edit modal.
+             */
+            showProfileEditModal() {
+                document.getElementById('profile-modal-overlay').classList.add('active');
+                document.getElementById('profile-modal-overlay').classList.remove('hidden');
+                document.getElementById('app-main-content').classList.add('hidden'); // Hide main app content
+                this.updateUserEditForm(); // Populate form with current user data
+            }
+
+            /**
+             * Hides the profile edit modal.
+             */
+            hideProfileEditModal() {
+                document.getElementById('profile-modal-overlay').classList.remove('active');
+                document.getElementById('profile-modal-overlay').classList.add('hidden');
+                document.getElementById('app-main-content').classList.remove('hidden'); // Show main app content
+            }
+
+            /**
+             * Displays the reset data modal.
+             */
+            showResetDataModal() {
+                document.getElementById('reset-data-modal-overlay').classList.add('active');
+                document.getElementById('reset-data-modal-overlay').classList.remove('hidden');
+                document.getElementById('app-main-content').classList.add('hidden'); // Hide main app content
+                 // Uncheck all checkboxes when opening
+                document.querySelectorAll('#reset-data-modal-content input[type="checkbox"]').forEach(cb => cb.checked = false);
+            }
+
+            /**
+             * Hides the reset data modal.
+             */
+            hideResetDataModal() {
+                document.getElementById('reset-data-modal-overlay').classList.remove('active');
+                document.getElementById('reset-data-modal-overlay').classList.add('hidden');
+                document.getElementById('app-main-content').classList.remove('hidden'); // Show main app content
+            }
+
+            /**
+             * Processes the selected reset options from the modal.
+             * @param {Event} event - The form submit event.
+             */
+            processResetData(event) {
+                if (event) event.preventDefault();
+
+                const checkboxes = document.querySelectorAll('#reset-data-modal-content input[type="checkbox"]');
+                const checkedOptions = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+
+                if (checkedOptions.length === 0) {
+                    this.showMessageModal('กรุณาเลือกอย่างน้อยหนึ่งรายการเพื่อรีเซ็ต.', 'ข้อผิดพลาด');
+                    return;
+                }
+
+                // Reset user stats if XP or Gold is checked
+                if (checkedOptions.includes('xp')) {
+                    this.state.user.xp = 0;
+                    this.state.user.level = 1; // Reset level too if XP is reset
+                }
+                if (checkedOptions.includes('gold')) {
+                    this.state.user.gold = 0;
+                }
+
+                // Reset mutable data structures based on selection
+                if (checkedOptions.includes('tasks')) {
+                    this.state.tasks = []; // Only user-added tasks can be reset
+                }
+                if (checkedOptions.includes('exams')) {
+                    // Reset user-added exams and reset status/score of hardcoded exams
+                    this.state.exams = this._hardcodedExams.map(hardcodedExam => ({ 
+                        ...hardcodedExam, 
+                        status: 'Planned', 
+                        score: null 
+                    }));
+                }
+                if (checkedOptions.includes('studySessions')) {
+                    this.state.studySessions = [];
+                }
+                if (checkedOptions.includes('userRewards')) {
+                    // Keep hardcoded rewards, remove user-added rewards and purchased rewards
+                    this.state.rewards = [...this._hardcodedRewards]; 
+                    this.state.purchasedRewards = []; // All purchased rewards will be reset as they are user-specific
+                }
+
+                // Reset achievements unlocked status
+                this.state.achievements.forEach(ach => ach.unlocked = false);
+
+
+                this.saveDataToLocalStorage();
+                this.recalculateAndApplyUserStats(); // Recalculate stats after potential XP/Gold reset
+                this.render();
+                this.hideResetDataModal();
+                this.showMessageModal('ข้อมูลที่เลือกถูกรีเซ็ตแล้ว!', 'สำเร็จ');
+            }
+
+
+            /**
+             * Updates the user profile edit form with current user data.
+             */
+            updateUserEditForm() {
+                const editUserNameInput = document.getElementById('edit-user-name');
+                const currentUserModalDisplay = document.getElementById('current-user-modal-display');
+
+                if (this.state.user.id) {
+                    editUserNameInput.value = this.state.user.name;
+                    currentUserModalDisplay.textContent = `${this.state.user.name} (ID: ${this.state.user.studentId})`; // Display full student ID
+                } else {
+                    editUserNameInput.value = '';
+                    currentUserModalDisplay.textContent = 'ไม่มีผู้ใช้';
+                }
+            }
+
+            /**
+             * Updates the displayed user name and student info in the UI.
+             */
+            updateUserIdDisplay() {
+                const userName = this.state.user.name;
+                const studentId = this.state.user.studentId;
+
+                document.getElementById('player-name-display').textContent = `นักเรียน: ${userName} (ID: ${studentId})`;
+                document.getElementById('student-info-display').textContent = `คณะ: ${this.state.user.faculty} สาขา: ${this.state.user.major} ปีการศึกษา ${this.state.user.academicYear} ระหว่าง ${this.state.user.period}`;
+            }
+            
+            /**
+             * Resets the user's Gold to 0.
+             */
+            resetGold() {
+                // Using a custom modal for confirmation as alert/confirm can be problematic in iframes
+                this.showMessageModal('คุณแน่ใจหรือไม่ที่จะรีเซ็ต Gold ทั้งหมด? การกระทำนี้ไม่สามารถย้อนกลับได้!', 'ยืนยันการรีเซ็ต Gold', () => {
+                    this.state.user.gold = 0;
+                    this.saveDataToLocalStorage();
+                    this.render();
+                    this.showMessageModal('Gold ของคุณถูกรีเซ็ตแล้ว!', 'สำเร็จ');
+                });
+            }
+
+            /**
+             * Adds a new task to the state.
+             * @param {Event} event - The form submit event.
+             */
+            addTask(event) {
+                if (event) event.preventDefault();
+                const name = document.getElementById('task-name').value;
+                const subject = document.getElementById('task-subject').value;
+                const dueDate = document.getElementById('task-due-date').value;
+                const priority = document.getElementById('task-priority').value;
+                const effort = parseInt(document.getElementById('task-effort').value);
+
+                if (!name || !subject || !dueDate || !priority || isNaN(effort) || effort <= 0) {
+                    console.error('Validation failed: All task fields are required and effort must be positive.');
+                    this.showMessageModal('กรุณากรอกข้อมูลงานให้ครบถ้วนและถูกต้อง', 'ข้อผิดพลาด');
+                    return;
+                }
+
+                const newTask = {
+                    id: Date.now(), // Simple unique ID
+                    name, subject, dueDate, priority, effort,
+                    status: 'Not Started',
+                    grade: null,
+                    isHardcoded: false
+                };
+                this.state.tasks.push(newTask);
+                document.getElementById('add-task-form').reset();
+                this.saveDataToLocalStorage();
+                this.recalculateAndApplyUserStats(); // Recalculate stats after adding
+                this.render();
+                this.showMessageModal(`เพิ่มงาน "${name}" สำเร็จแล้ว!`, 'สำเร็จ');
+            }
+
+            /**
+             * Adds a new exam to the state.
+             * @param {Event} event - The form submit event.
+             */
+            addExam(event) {
+                if (event) event.preventDefault();
+                const name = document.getElementById('exam-name').value;
+                const date = document.getElementById('exam-date').value;
+                const subject = document.getElementById('exam-subject').value;
+                const type = document.getElementById('exam-type').value;
+
+                if (!name || !date || !subject || !type) {
+                    console.error('Validation failed: All exam fields are required.');
+                    this.showMessageModal('กรุณากรอกข้อมูลการสอบให้ครบถ้วน', 'ข้อผิดพลาด');
+                    return;
+                }
+
+                const newExam = { 
+                    id: Date.now(), name, subject, date, 
+                    time: null, location: null, // Defaulting as before
+                    type, status: 'Planned', score: null, isHardcoded: false 
+                }; 
+                this.state.exams.push(newExam);
+                document.getElementById('add-exam-form').reset();
+                this.saveDataToLocalStorage();
+                this.recalculateAndApplyUserStats(); // Recalculate stats after adding
+                this.render();
+                this.showMessageModal(`เพิ่มการสอบ "${name}" สำเร็จแล้ว!`, 'สำเร็จ');
+            }
+
+            /**
+             * Adds a new study session to the state.
+             * @param {Event} event - The form submit event.
+             */
+            addStudySession(event) {
+                if (event) event.preventDefault();
+                const subject = document.getElementById('study-subject').value;
+                const duration = parseInt(document.getElementById('study-duration').value);
+                const date = new Date().toISOString().split('T')[0]; // Current date
+
+                if (!subject || isNaN(duration) || duration <= 0) {
+                    console.error('Validation failed: Subject and positive duration are required for study session.');
+                    this.showMessageModal('กรุณากรอกวิชาและระยะเวลาการเรียนให้ถูกต้อง', 'ข้อผิดพลาด');
+                    return;
+                }
+
+                const newSession = {
+                    id: Date.now(), // Simple unique ID
+                    subject, duration, date,
+                    xpEarned: (duration * 0.5), // Calculate XP for this session
+                    isHardcoded: false // Mark as user-added
+                };
+                this.state.studySessions.push(newSession);
+                document.getElementById('add-study-form').reset();
+                this.saveDataToLocalStorage();
+                this.recalculateAndApplyUserStats(); // Recalculate overall stats
+                this.render();
+                this.showMessageModal(`บันทึกการเรียนวิชา ${subject} (${duration} นาที) สำเร็จแล้ว!`, 'สำเร็จ');
+            }
+
+            /**
+             * Adds a new class schedule entry to the state.
+             * @param {Event} event - The form submit event.
+             */
+            addClassScheduleEntry(event) {
+                if (event) event.preventDefault();
+                const day = document.getElementById('class-day').value;
+                const time = document.getElementById('class-time').value;
+                const displayName = document.getElementById('class-display-name').value;
+                const subject = document.getElementById('class-subject').value;
+                const courseDetails = document.getElementById('class-course-details').value;
+
+                if (!day || !time || !displayName || !subject) {
+                    console.error('Validation failed: Day, Time, Display Name, and Subject are required for class schedule.');
+                    this.showMessageModal('กรุณากรอกข้อมูลตารางเรียนให้ครบถ้วน', 'ข้อผิดพลาด');
+                    return;
+                }
+
+                const newClass = {
+                    id: Date.now(), // Simple unique ID
+                    day, time, displayName, subject,
+                    course: courseDetails || '',
+                    isHardcoded: false 
+                };
+                this.state.classSchedule.push(newClass);
+                document.getElementById('add-class-form').reset();
+                this.saveDataToLocalStorage();
+                this.render();
+                this.showMessageModal(`เพิ่มตารางเรียน ${displayName} สำเร็จแล้ว!`, 'สำเร็จ');
+            }
+
+            /**
+             * Adds a new reward to the state.
+             * @param {Event} event - The form submit event.
+             */
+            addReward(event) {
+                if (event) event.preventDefault();
+                const name = document.getElementById('reward-name').value;
+                const cost = parseInt(document.getElementById('reward-cost').value);
+                const description = document.getElementById('reward-description').value;
+
+                if (!name || isNaN(cost) || cost <= 0) {
+                    console.error('Validation failed: Reward name and positive cost are required.');
+                    this.showMessageModal('กรุณากรอกชื่อรางวัลและค่าใช้จ่าย Gold ให้ถูกต้อง', 'ข้อผิดพลาด');
+                    return;
+                }
+
+                const newReward = {
+                    id: Date.now(), // Simple unique ID
+                    name, cost, description: description || 'รางวัลส่วนตัว',
+                    isHardcoded: false
+                };
+                this.state.rewards.push(newReward);
+                document.getElementById('add-reward-form').reset();
+                this.saveDataToLocalStorage();
+                this.render();
+                this.showMessageModal(`เพิ่มรางวัล "${name}" สำเร็จแล้ว!`, 'สำเร็จ');
+            }
+            
+            /**
+             * Updates the status of a task and awards XP/Gold if completed.
+             * @param {number} taskId - The ID of the task to update.
+             * @param {string} newStatus - The new status of the task.
+             */
+            updateTaskStatus(taskId, newStatus) {
+                const task = this.state.tasks.find(t => t.id === taskId);
+                if (task) {
+                    task.status = newStatus;
+                    this.saveDataToLocalStorage();
+                    this.recalculateAndApplyUserStats(); // Recalculate overall stats
+                    this.render();
+                    this.showMessageModal(`อัปเดตสถานะงาน "${task.name}" เป็น "${newStatus}"`, 'สำเร็จ');
+                }
+            }
+
+            /**
+             * Updates the score of an exam and potentially updates its status.
+             * @param {number} examId - The ID of the exam to update.
+             * @param {string|number} score - The new score.
+             */
+            updateExamScore(examId, score) {
+                const exam = this.state.exams.find(e => e.id == examId); // Use == for ID comparison as some might be string and some number
+                if (exam) {
+                    const oldScore = exam.score; // Keep old score to prevent re-awarding XP on subsequent renders if status doesn't change
+                    exam.score = score !== '' ? parseFloat(score) : null;
+                    const oldStatus = exam.status;
+
+                    if (exam.score !== null && exam.score >= 0) { // Assume valid score >= 0
+                        exam.status = 'Completed';
+                    } else {
+                        exam.status = 'Planned'; // Reset status if score is cleared or invalid
+                    }
+
+                    // Only recalculate XP if score or status actually changed to a completed state
+                    if (oldStatus !== 'Completed' && exam.status === 'Completed' && exam.score !== null) {
+                         this.recalculateAndApplyUserStats(); // Recalculate overall stats
+                    } else if (oldStatus === 'Completed' && exam.status !== 'Completed') {
+                        // If status changed from completed to non-completed, might need to deduct XP/Gold
+                        // For simplicity, we only add XP/Gold. Resetting status means user needs to re-earn.
+                        this.recalculateAndApplyUserStats(); // Recalculate to ensure consistency
+                    }
+                    this.saveDataToLocalStorage();
+                    this.render();
+                    this.showMessageModal(`อัปเดตคะแนนสอบ "${exam.name}" เป็น ${exam.score !== null ? exam.score : '-'}`, 'สำเร็จ');
+                }
+            }
+            
+            /**
+             * Deletes a task from the state.
+             * @param {number} taskId - The ID of the task to delete.
+             */
+            deleteTask(taskId) {
+                const taskName = this.state.tasks.find(t => t.id === taskId)?.name || 'งาน';
+                if (confirm(`คุณแน่ใจหรือไม่ที่จะลบงาน "${taskName}"?`)) { // Keep confirm here for critical delete actions
+                    this.state.tasks = this.state.tasks.filter(t => t.id !== taskId);
+                    this.saveDataToLocalStorage();
+                    this.recalculateAndApplyUserStats(); // Recalculate stats after deletion
+                    this.render();
+                    this.showMessageModal(`ลบงาน "${taskName}" สำเร็จแล้ว!`, 'สำเร็จ');
+                }
+            }
+            
+            /**
+             * Deletes an exam from the state.
+             * Hardcoded exams cannot be deleted via UI.
+             * @param {string} examId - The ID of the exam to delete.
+             */
+            deleteExam(examId) {
+                const examToDelete = this.state.exams.find(e => e.id == examId);
+                if (examToDelete && examToDelete.isHardcoded) {
+                    this.showMessageModal("ไม่สามารถลบการสอบที่กำหนดไว้ล่วงหน้าได้", 'ข้อผิดพลาด');
+                    return;
+                }
+                const examName = examToDelete?.name || 'การสอบ';
+                if (confirm(`คุณแน่ใจหรือไม่ที่จะลบการสอบ "${examName}"?`)) { // Keep confirm here
+                    this.state.exams = this.state.exams.filter(e => e.id != examId);
+                    this.saveDataToLocalStorage();
+                    this.recalculateAndApplyUserStats(); // Recalculate stats after deletion
+                    this.render();
+                    this.showMessageModal(`ลบการสอบ "${examName}" สำเร็จแล้ว!`, 'สำเร็จ');
+                }
+            }
+
+            /**
+             * Deletes a class schedule entry from the state.
+             * Hardcoded entries cannot be deleted via UI.
+             * @param {string} id - The ID of the class schedule entry to delete.
+             */
+            deleteClassScheduleEntry(id) {
+                const classToDelete = this.state.classSchedule.find(c => c.id == id);
+                if (classToDelete && classToDelete.isHardcoded) {
+                    this.showMessageModal("ไม่สามารถลบตารางเรียนที่กำหนดไว้ล่วงหน้าได้", 'ข้อผิดพลาด');
+                    return;
+                }
+                const className = classToDelete?.displayName || 'ตารางเรียน';
+                 if (confirm(`คุณแน่ใจหรือไม่ที่จะลบตารางเรียน "${className}"?`)) { // Keep confirm here
+                    this.state.classSchedule = this.state.classSchedule.filter(c => c.id != id);
+                    this.saveDataToLocalStorage();
+                    this.render();
+                    this.showMessageModal(`ลบตารางเรียน "${className}" สำเร็จแล้ว!`, 'สำเร็จ');
+                }
+            }
+
+            /**
+             * Deletes a reward from the state.
+             * Hardcoded rewards cannot be deleted via UI.
+             * @param {number} rewardId - The ID of the reward to delete.
+             */
+            deleteReward(rewardId) {
+                const rewardToDelete = this.state.rewards.find(r => r.id == rewardId);
+                if (rewardToDelete && rewardToDelete.isHardcoded) {
+                    this.showMessageModal("ไม่สามารถลบรางวัลที่กำหนดไว้ล่วงหน้าได้", 'ข้อผิดพลาด');
+                    return;
+                }
+                const rewardName = rewardToDelete?.name || 'รางวัล';
+                if (confirm(`คุณแน่ใจหรือไม่ที่จะลบรางวัล "${rewardName}"?`)) { // Keep confirm here
+                    this.state.rewards = this.state.rewards.filter(r => r.id != rewardId);
+                    this.saveDataToLocalStorage();
+                    this.render();
+                    this.showMessageModal(`ลบรางวัล "${rewardName}" สำเร็จแล้ว!`, 'สำเร็จ');
+                }
+            }
+
+            /**
+             * Deletes a study session from the state.
+             * @param {number} sessionId - The ID of the study session to delete.
+             */
+            deleteStudySession(sessionId) {
+                const session = this.state.studySessions.find(s => s.id === sessionId);
+                const sessionSubject = session?.subject || 'การเรียนรู้';
+                if (confirm(`คุณแน่ใจหรือไม่ที่จะลบการเรียนรู้ ${sessionSubject} (${session?.duration || ''} นาที)?`)) { // Keep confirm here
+                    this.state.studySessions = this.state.studySessions.filter(s => s.id !== sessionId);
+                    this.saveDataToLocalStorage();
+                    this.recalculateAndApplyUserStats(); // Recalculate stats after deletion
+                    this.render();
+                    this.showMessageModal(`ลบการเรียนรู้ ${sessionSubject} สำเร็จแล้ว!`, 'สำเร็จ');
+                }
+            }
+
+            /**
+             * Attempts to "buy" a reward, deducting gold if successful.
+             * @param {number} rewardId - The ID of the reward to buy.
+             */
+            buyReward(rewardId) {
+                const rewardIndex = this.state.rewards.findIndex(r => r.id === rewardId);
+                if (rewardIndex === -1) {
+                    console.error("Reward not found for purchase.");
+                    this.showMessageModal("ไม่พบรางวัลที่ต้องการซื้อ", 'ข้อผิดพลาด');
+                    return;
+                }
+                const reward = this.state.rewards[rewardIndex];
+            
+                // Ensure the user's gold is an integer before comparison to prevent floating point issues
+                const playerGold = Math.floor(this.state.user.gold); 
+            
+                if (playerGold >= reward.cost) {
+                    this.state.user.gold -= reward.cost;
+                    
+                    // Move reward to purchasedRewards and add purchase date
+                    const purchasedReward = { ...reward, purchaseDate: new Date().toISOString().split('T')[0] };
+                    this.state.purchasedRewards.push(purchasedReward);
+                    
+                    // Remove from available rewards if not hardcoded, or if it's hardcoded, mark it as "purchased" internally without removing
+                    // For hardcoded rewards, we keep them in the _hardcodedRewards list and simply don't display them in the shop if purchased.
+                    if (!reward.isHardcoded) {
+                         this.state.rewards.splice(rewardIndex, 1); // Remove from available list if it's user-added
+                    } else {
+                        // For hardcoded rewards, simply rely on the filter in renderRewards to hide it from the shop
+                        // We don't splice from the main `rewards` array if it's hardcoded, as it needs to be maintained for initial state.
+                    }
+
+                    this.showMessageModal(`ซื้อ "${reward.name}" สำเร็จแล้ว!`, 'สำเร็จ');
+                    this.saveDataToLocalStorage();
+                    this.render();
+                } else {
+                    this.showMessageModal("Gold ไม่พอ!", 'ไม่สำเร็จ');
+                }
+            }
+
+            /**
+             * Recalculates total XP and Gold based on current data and updates user stats.
+             */
+            recalculateAndApplyUserStats() {
+                let totalXp = 0;
+                let totalGold = 0;
+
+                // XP/Gold from Tasks
+                this.state.tasks.filter(t => t.status === 'Completed' || t.status === 'Graded').forEach(task => {
+                    totalXp += task.effort * 10;
+                    totalGold += task.effort * 5;
+                });
+
+                // XP/Gold from Study Sessions
+                this.state.studySessions.forEach(session => {
+                    totalXp += session.duration * 0.5;
+                    totalGold += session.duration * 0.2; 
+                });
+
+                // XP from Exams
+                this.state.exams.filter(e => e.score !== null && e.status === 'Completed').forEach(exam => {
+                    totalXp += (exam.score || 0) * 2;
+                });
+
+                this.state.user.xp = totalXp;
+                this.state.user.gold = Math.floor(totalGold); // Corrected: Floor totalGold to avoid floating point issues
+                this.checkLevelUp(); // This will update level and achievements based on new XP
+                this.saveDataToLocalStorage(); // Save after recalculation
+            }
+
+            /**
+             * Checks if the user should level up based on XP.
+             */
+            checkLevelUp() {
+                const currentLevel = this.state.user.level;
+                let newLevel = currentLevel;
+                // Keep leveling up until XP is insufficient for the next level or no more levels
+                while (this.config.levelingTable[newLevel + 1] !== undefined && this.state.user.xp >= this.config.levelingTable[newLevel + 1]) {
+                    newLevel++;
+                }
+                this.state.user.level = newLevel;
+                this.checkAchievements(); // Always check achievements after XP/level change
+            }
+
+            /**
+             * Checks and updates unlocked achievements.
+             */
+            checkAchievements() {
+                this.state.achievements.forEach(ach => { // Use state.achievements as it's user-specific
+                    if (!ach.unlocked && ach.criteria()) {
+                        ach.unlocked = true;
+                        // Optionally, show a notification for new achievement!
+                        // this.showMessageModal(`ความสำเร็จปลดล็อก! ${ach.name}`, 'ความสำเร็จใหม่'); // Consider adding a less intrusive notification
+                    }
+                });
+            }
+
+            /**
+             * Populates dropdowns for subjects and priorities.
+             */
+            populateDropdowns() {
+                const subjectSelects = [document.getElementById('task-subject'), document.getElementById('study-subject'), document.getElementById('exam-subject'), document.getElementById('class-subject')];
+                const prioritySelect = document.getElementById('task-priority');
+
+                let allSubjects = new Set();
+                this.state.classSchedule.forEach(item => allSubjects.add(item.subject)); 
+                this.state.exams.forEach(exam => {
+                    if (exam.subject) allSubjects.add(exam.subject);
+                });
+                this.state.tasks.forEach(task => { // Include subjects from tasks
+                    if (task.subject) allSubjects.add(task.subject);
+                });
+
+                if (allSubjects.size === 0) {
+                     allSubjects.add("อื่นๆ");
+                }
+                const uniqueSubjects = Array.from(allSubjects).sort();
+
+                subjectSelects.forEach(select => {
+                    if (select) { // Ensure select element exists
+                        // Store current selected value to re-select after update
+                        const selectedValue = select.value;
+                        select.innerHTML = '<option value="">เลือกวิชา</option>'; 
+                        uniqueSubjects.forEach(subject => {
+                            const option = document.createElement('option');
+                            option.value = subject;
+                            option.textContent = subject;
+                            select.appendChild(option);
+                        });
+                        // Restore selected value
+                        select.value = selectedValue;
+                    }
+                });
+                
+                if (prioritySelect) { 
+                    const selectedValue = prioritySelect.value;
+                    prioritySelect.innerHTML = '<option value="">เลือกความสำคัญ</option>'; 
+                    this.config.priorities.forEach(priority => {
+                        const option = document.createElement('option');
+                        option.value = priority;
+                        option.textContent = priority;
+                        prioritySelect.appendChild(option);
+                    });
+                    prioritySelect.value = selectedValue;
+                }
+
+                this.setupFormValidation();
+            }
+            
+            /**
+             * Sets up form validation to enable/disable submit buttons.
+             */
+            setupFormValidation() {
+                const forms = [
+                    { id: 'add-task-form', buttonId: 'add-task-btn', activeClass: 'btn-green-base', hoverClass: 'btn-green-hover', fields: ['task-name', 'task-subject', 'task-due-date', 'task-priority', 'task-effort'] },
+                    { id: 'add-exam-form', buttonId: 'add-exam-btn', activeClass: 'btn-green-base', hoverClass: 'btn-green-hover', fields: ['exam-name', 'exam-date', 'exam-subject', 'exam-type'] },
+                    { id: 'add-study-form', buttonId: 'add-study-btn', activeClass: 'btn-green-base', hoverClass: 'btn-green-hover', fields: ['study-subject', 'study-duration'] },
+                    { id: 'add-class-form', buttonId: 'add-class-btn', activeClass: 'btn-green-base', hoverClass: 'btn-green-hover', fields: ['class-day', 'class-time', 'class-display-name', 'class-subject'] },
+                    { id: 'add-reward-form', buttonId: 'add-reward-btn', activeClass: 'btn-green-base', hoverClass: 'btn-green-hover', fields: ['reward-name', 'reward-cost'] }
+                ];
+
+                forms.forEach(formConfig => {
+                    const formElement = document.getElementById(formConfig.id);
+                    const submitButton = document.getElementById(formConfig.buttonId);
+                    
+                    const validateForm = () => {
+                        let allFieldsFilled = true;
+                        formConfig.fields.forEach(fieldId => {
+                            const field = document.getElementById(fieldId);
+                            if (!field) { 
+                                allFieldsFilled = false; 
+                                return;
+                            }
+                            if (field.hasAttribute('required') && (field.value === '' || (field.type === 'number' && isNaN(parseFloat(field.value))))) { // Use parseFloat for number validation
+                                allFieldsFilled = false;
+                            }
+                            if (field.type === 'number' && parseFloat(field.value) < parseFloat(field.min || 0)) {
+                                allFieldsFilled = false;
+                            }
+                        });
+                        if (submitButton) {
+                            submitButton.disabled = !allFieldsFilled;
+                            if (allFieldsFilled) {
+                                submitButton.classList.remove('btn-disabled');
+                                submitButton.classList.add(formConfig.activeClass, formConfig.hoverClass);
+                            } else {
+                                submitButton.classList.add('btn-disabled');
+                                submitButton.classList.remove(formConfig.activeClass, formConfig.hoverClass);
+                            }
+                        }
+                    };
+
+                    if (formElement) {
+                        formConfig.fields.forEach(fieldId => {
+                            const field = document.getElementById(fieldId);
+                            if (field) {
+                                field.addEventListener('input', validateForm);
+                                field.addEventListener('change', validateForm); 
+                            }
+                        });
+                        validateForm(); 
+                    }
+                });
+            }
+
+            /**
+             * Renders the current view based on `this.state.currentView`.
+             */
+            render() {
+                document.querySelectorAll('.view').forEach(view => {
+                    view.classList.toggle('active', view.id === this.state.currentView);
+                });
+                document.querySelectorAll('.tab-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.view === this.state.currentView);
+                });
+
+                // Always render main content as there's no separate login-view
+                document.getElementById('app-main-content').classList.remove('hidden');
+                if (this.state.currentView === 'dashboard-view') {
+                    this.renderDashboard();
+                } else if (this.state.currentView === 'tasks-view') {
+                    this.renderTasks();
+                } else if (this.state.currentView === 'study-view') {
+                    this.renderStudyPrep();
+                } else if (this.state.currentView === 'rewards-view') {
+                    this.renderRewards();
+                }
+                this.populateDropdowns(); 
+                this.setupFormValidation(); 
+            }
+
+            /**
+             * Renders the Dashboard view, including player stats, charts, and upcoming deadlines.
+             */
+            renderDashboard() {
+                this.checkAchievements();
+                const user = this.state.user;
+                const currentLevelXpStart = this.config.levelingTable[user.level] || 0;
+                const nextLevelXp = this.config.levelingTable[user.level + 1] || (user.xp + 100); 
+                const xpInLevel = user.xp - currentLevelXpStart;
+                const xpNeededForLevel = nextLevelXp - currentLevelXpStart;
+
+                document.getElementById('level-display').textContent = user.level;
+                document.getElementById('xp-display').textContent = Math.floor(user.xp);
+                document.getElementById('gold-display').textContent = Math.floor(user.gold);
+
+                const xpProgressBar = document.getElementById('xp-progress-bar');
+                const xpProgressText = document.getElementById('xp-progress-text');
+
+                if (xpProgressBar && xpProgressText) {
+                    const xpProgressPercent = xpNeededForLevel > 0 ? (xpInLevel / xpNeededForLevel) * 100 : 100;
+                    xpProgressBar.style.width = `${Math.min(xpProgressPercent, 100)}%`;
+                    xpProgressText.textContent = `${Math.floor(xpInLevel)} / ${xpNeededForLevel}`;
+                }
+
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const sevenDaysLater = new Date(today);
+                sevenDaysLater.setDate(today.getDate() + 7);
+
+                const upcomingTasks = [...this.state.tasks].filter(task => { // Use spread to avoid direct mutation
+                    const dueDate = new Date(task.dueDate);
+                    return task.status !== 'Completed' && dueDate >= today && dueDate <= sevenDaysLater;
+                }).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+                const deadlinesTable = document.getElementById('upcoming-deadlines-table');
+                if (!deadlinesTable) {
+                    console.error("Upcoming deadlines table element not found.");
+                    return;
+                }
+                deadlinesTable.innerHTML = '';
+                if (upcomingTasks.length > 0) {
+                    upcomingTasks.forEach(task => {
+                        deadlinesTable.innerHTML += `
+                            <tr class="border-b earth-border">
+                                <td class="p-2">${task.name}</td>
+                                <td class="p-2">${task.subject}</td>
+                                <td class="p-2">${task.dueDate}</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    deadlinesTable.innerHTML = '<tr><td colspan="3" class="p-4 text-center">ยังไม่มีงานที่ใกล้ครบกำหนดใน 7 วันนี้</td></tr>';
+                }
+
+                this.renderCharts();
+            }
+
+            /**
+             * Renders the Tasks view, displaying all tasks in a table.
+             */
+            renderTasks() {
+                const tasksTable = document.getElementById('tasks-table');
+                if (!tasksTable) {
+                    console.error("Tasks table element not found.");
+                    return;
+                }
+                tasksTable.innerHTML = '';
+                const sortedTasks = [...this.state.tasks].sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+                sortedTasks.forEach(task => {
+                    const daysLeft = Math.ceil((new Date(task.dueDate) - new Date()) / (1000 * 60 * 60 * 24));
+                    const statusDropdown = this.config.statuses.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('');
+                    
+                    let daysLeftText = '-';
+                    let daysLeftClass = '';
+                    if (task.status !== 'Completed' && new Date(task.dueDate) > new Date()) {
+                        if (daysLeft < 0) {
+                            daysLeftText = `เลยกำหนด ${Math.abs(daysLeft)} วัน`;
+                            daysLeftClass = 'text-red-600 font-bold';
+                        } else if (daysLeft === 0) {
+                             daysLeftText = 'วันนี้';
+                             daysLeftClass = 'text-orange-600 font-bold';
+                        }
+                        else if (daysLeft <= 3) {
+                            daysLeftText = `${daysLeft} วัน`;
+                            daysLeftClass = 'text-orange-600 font-bold';
+                        } else {
+                            daysLeftText = `${daysLeft} วัน`;
+                        }
+                    } else if (task.status !== 'Completed' && new Date(task.dueDate).toDateString() === new Date().toDateString()){
+                        daysLeftText = 'วันนี้';
+                        daysLeftClass = 'text-orange-600 font-bold';
+                    }
+                    else if (task.status === 'Completed' || task.status === 'Graded') {
+                        daysLeftText = '-'; // Task completed, no more "days left"
+                    }
+                    
+
+                    tasksTable.innerHTML += `
+                        <tr class="border-b earth-border hover:bg-opacity-50 hover:earth-bg-header transition-colors">
+                            <td class="p-2">${task.name}</td>
+                            <td class="p-2">${task.subject}</td>
+                            <td class="p-2">${task.dueDate}</td>
+                            <td class="p-2 ${daysLeftClass}">${daysLeftText}</td>
+                            <td class="p-2">
+                                <select onchange="window.studyTrackerApp.updateTaskStatus(${task.id}, this.value)" class="p-1 border earth-border rounded-md bg-white text-xs">
+                                    ${statusDropdown}
+                                </select>
+                            </td>
+                            <td class="p-2">${task.priority}</td>
+                            <td class="p-2">${task.grade !== null ? task.grade : '-'}</td>
+                             <td class="p-2 flex flex-col space-y-1">
+                                <button onclick="window.studyTrackerApp.deleteTask(${task.id})" class="text-red-500 hover:text-red-700 text-xs">ลบ</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            
+            /**
+             * Renders the Study & Prep view, including class schedule, exams, and study sessions.
+             */
+            renderStudyPrep() {
+                // Render Class Schedule
+                const classScheduleTable = document.getElementById('class-schedule-table');
+                if (!classScheduleTable) {
+                    console.error("Class schedule table element not found.");
+                    return;
+                }
+                classScheduleTable.innerHTML = '';
+                const timeSlots = ["8:00-8:50", "9:00-9:50", "10:00-10:50", "11:00-11:50", "12:00-12:50", "13:00-13:50", "14:00-14:50", "15:00-15:50", "16:00-16:50"];
+                const daysOfWeek = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"];
+                
+                timeSlots.forEach(time => {
+                    let rowHtml = `<tr class="border-b earth-border"><td class="p-2 font-semibold">${time}</td>`;
+                    daysOfWeek.forEach(day => {
+                        const classesInSlot = this.state.classSchedule.filter(c => c.day === day && c.time === time);
+                        if (classesInSlot.length > 0) {
+                            let cellContent = '';
+                            classesInSlot.forEach(classInfo => {
+                                cellContent += `
+                                    <div class="mb-1">
+                                        <strong>${classInfo.displayName}</strong><br>
+                                        <span class="text-gray-600">${classInfo.course}</span>`;
+                                // Only show delete button for non-hardcoded entries
+                                if (!classInfo.isHardcoded) {
+                                    cellContent += `<br><button onclick="window.studyTrackerApp.deleteClassScheduleEntry('${classInfo.id}')" class="text-red-500 hover:text-red-700 text-xs mt-1">ลบ</button>`;
+                                }
+                                cellContent += `</div>`;
+                            });
+                            rowHtml += `<td class="p-2 class-cell-content">${cellContent}</td>`;
+                        } else {
+                            rowHtml += `<td class="p-2"></td>`;
+                        }
+                    });
+                    rowHtml += `</tr>`;
+                    classScheduleTable.innerHTML += rowHtml;
+                });
+
+
+                // Render Midterm Exams
+                const midtermExamsTable = document.getElementById('midterm-exams-table');
+                if (!midtermExamsTable) {
+                    console.error("Midterm exams table element not found.");
+                    return;
+                }
+                midtermExamsTable.innerHTML = '';
+                [...this.state.exams].filter(e => e.type === 'Midterm').sort((a,b) => {
+                    const dateA = a.date ? new Date(a.date) : new Date(0); 
+                    const dateB = b.date ? new Date(b.date) : new Date(0);
+                    return dateA - dateB;
+                }).forEach(exam => {
+                     midtermExamsTable.innerHTML += `
+                        <tr class="border-b earth-border">
+                            <td class="p-2">${exam.name}</td>
+                            <td class="p-2">${exam.subject}</td>
+                            <td class="p-2">${exam.date !== null ? exam.date : '-'}</td>
+                            <td class="p-2">${exam.status}</td>
+                            <td class="p-2">
+                                <input type="number" value="${exam.score !== null ? exam.score : ''}" 
+                                       onchange="window.studyTrackerApp.updateExamScore('${exam.id}', this.value)" 
+                                       class="w-20 p-1 border earth-border rounded-md text-xs">
+                            </td>
+                            <td class="p-2">
+                                ${exam.isHardcoded ? '-' : `<button onclick="window.studyTrackerApp.deleteExam('${exam.id}')" class="text-red-500 hover:text-red-700 text-xs">ลบ</button>`}
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                // Render Final/Lab Exams
+                const finalExamsTable = document.getElementById('final-exams-table');
+                if (!finalExamsTable) {
+                    console.error("Final exams table element not found.");
+                    return;
+                }
+                finalExamsTable.innerHTML = '';
+                [...this.state.exams].filter(e => e.type === 'Final').sort((a,b) => {
+                    const dateA = a.date ? new Date(a.date) : new Date(0); 
+                    const dateB = b.date ? new Date(b.date) : new Date(0);
+                    return dateA - dateB;
+                }).forEach(exam => {
+                     finalExamsTable.innerHTML += `
+                        <tr class="border-b earth-border">
+                            <td class="p-2">${exam.name}</td>
+                            <td class="p-2">${exam.subject}</td>
+                            <td class="p-2">${exam.date !== null ? exam.date : '-'}</td>
+                            <td class="p-2">${exam.status}</td>
+                             <td class="p-2">
+                                <input type="number" value="${exam.score !== null ? exam.score : ''}" 
+                                       onchange="window.studyTrackerApp.updateExamScore('${exam.id}', this.value)" 
+                                       class="w-20 p-1 border earth-border rounded-md text-xs">
+                            </td>
+                            <td class="p-2">
+                                ${exam.isHardcoded ? '-' : `<button onclick="window.studyTrackerApp.deleteExam('${exam.id}')" class="text-red-500 hover:text-red-700 text-xs">ลบ</button>`}
+                            </td>
+                        </tr>
+                    `;
+                });
+
+
+                // Render Study Sessions
+                 const sessionsTable = document.getElementById('study-sessions-table');
+                 if (!sessionsTable) {
+                    console.error("Study sessions table element not found.");
+                    return;
+                }
+                 sessionsTable.innerHTML = '';
+                 [...this.state.studySessions].sort((a,b) => {
+                    const dateA = new Date(a.date);
+                    const dateB = new Date(b.date);
+                    return dateB.getTime() - dateA.getTime(); // Sort by date, newest first
+                 }).forEach(session => {
+                      sessionsTable.innerHTML += `
+                        <tr class="border-b earth-border">
+                            <td class="p-2">${session.date}</td>
+                            <td class="p-2">${session.subject}</td>
+                            <td class="p-2">${session.duration} นาที</td>
+                            <td class="p-2">${(session.xpEarned).toFixed(1)}</td>
+                             <td class="p-2">
+                                <button onclick="window.studyTrackerApp.deleteStudySession('${session.id}')" class="text-red-500 hover:text-red-700 text-xs">ลบ</button>
+                            </td>
+                        </tr>
+                    `;
+                 });
+            }
+
+            /**
+             * Renders the Level & Rewards view, including the reward shop and achievements.
+             */
+            renderRewards() {
+                 this.checkAchievements();
+                // Render Reward Shop
+                const rewardGrid = document.getElementById('reward-shop-grid');
+                if (!rewardGrid) {
+                    console.error("Reward shop grid element not found.");
+                    return;
+                }
+                rewardGrid.innerHTML = '';
+                // Filter out hardcoded rewards that are already in purchasedRewards
+                const purchasedHardcodedRewardIds = new Set(this.state.purchasedRewards.filter(pr => pr.isHardcoded).map(pr => pr.id));
+                const availableRewards = this.state.rewards.filter(reward => 
+                    !reward.isHardcoded || (reward.isHardcoded && !purchasedHardcodedRewardIds.has(reward.id))
+                );
+
+                if (availableRewards.length > 0) {
+                    availableRewards.forEach(reward => { 
+                        const canAfford = Math.floor(this.state.user.gold) >= reward.cost; // Ensure integer comparison
+                        rewardGrid.innerHTML += `
+                            <div class="border earth-border p-3 rounded-lg flex flex-col justify-between ${canAfford ? 'earth-bg-card' : 'bg-gray-100 opacity-70'}">
+                                <div>
+                                    <h3 class="font-bold">${reward.name}</h3>
+                                    <p class="text-xs mb-2">${reward.description}</p>
+                                </div>
+                                <button onclick="window.studyTrackerApp.buyReward('${reward.id}')" ${!canAfford ? 'disabled' : ''} 
+                                    class="w-full text-sm mt-2 p-2 rounded-md font-semibold
+                                    ${canAfford ? 'btn-terracotta-base btn-terracotta-hover' : 'btn-disabled'}">
+                                    ค่าใช้จ่าย: ${reward.cost} Gold
+                                </button>
+                                 ${reward.isHardcoded ? '' : `<button onclick="window.studyTrackerApp.deleteReward('${reward.id}')" class="text-red-500 hover:text-red-700 text-xs mt-1">ลบรางวัล</button>`}
+                            </div>
+                        `;
+                    });
+                } else {
+                    rewardGrid.innerHTML = '<div class="col-span-full text-center py-4">ไม่มีรางวัลในร้านค้าแล้ว!</div>';
+                }
+
+                // Render Purchased Rewards
+                const purchasedRewardsGrid = document.getElementById('purchased-rewards-grid');
+                if (!purchasedRewardsGrid) {
+                    console.error("Purchased rewards grid element not found.");
+                    return;
+                }
+                purchasedRewardsGrid.innerHTML = '';
+                if (this.state.purchasedRewards.length > 0) {
+                    [...this.state.purchasedRewards].reverse().forEach(pReward => { // Show newest first
+                        purchasedRewardsGrid.innerHTML += `
+                            <div class="border earth-border p-3 rounded-lg earth-bg-accent-green text-white">
+                                <h3 class="font-bold">${pReward.name}</h3>
+                                <p class="text-xs text-green-100">ซื้อเมื่อ: ${pReward.purchaseDate}</p>
+                                <p class="text-xs text-green-100">${pReward.description}</p>
+                            </div>
+                        `;
+                    });
+                } else {
+                    purchasedRewardsGrid.innerHTML = '<div class="col-span-full text-center py-4">ยังไม่มีรางวัลที่ซื้อ</div>';
+                }
+
+
+                // Render Achievements
+                const achievementsGrid = document.getElementById('achievements-grid');
+                if (!achievementsGrid) {
+                    console.error("Achievements grid element not found.");
+                    return;
+                }
+                achievementsGrid.innerHTML = '';
+                this.state.achievements.forEach(ach => { // Use state.achievements to reflect user's unlocked status
+                    const unlockedClass = ach.unlocked ? 'unlocked' : 'opacity-60';
+                     achievementsGrid.innerHTML += `
+                        <div class="achievement-card border earth-border p-3 rounded-lg ${unlockedClass}">
+                            <h3 class="font-bold">${ach.name}</h3>
+                            <p class="achievement-desc text-xs">
+                                ${ach.unlocked ? 'ปลดล็อกแล้ว!' : `ยังไม่ปลดล็อก: ${ach.description}`}
+                            </p>
+                        </div>
+                    `;
+                });
+            }
+            
+            /**
+             * Renders the Chart.js visualizations for overall progress and task status.
+             */
+            renderCharts() {
+                const completedTasksCount = this.state.tasks.filter(t => t.status === 'Completed' || t.status === 'Graded').length;
+                const totalTasksCount = this.state.tasks.length;
+                
+                const progressCtx = document.getElementById('progressChart');
+                if (!progressCtx) {
+                    console.error("Progress chart canvas not found.");
+                    return;
+                }
+                const progressChartContext = progressCtx.getContext('2d');
+                if (this.charts.progressChart) {
+                    this.charts.progressChart.destroy();
+                    this.charts.progressChart = null; // Explicitly nullify after destroy
+                }
+                this.charts.progressChart = new Chart(progressChartContext, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['เสร็จแล้ว', 'เหลือ'],
+                        datasets: [{
+                            data: [completedTasksCount, totalTasksCount - completedTasksCount],
+                            backgroundColor: ['#A2B49D', '#E0E0E0'], // Muted Green, Light Gray
+                            borderWidth: 0,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { 
+                                enabled: true,
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed !== null) {
+                                            label += context.parsed;
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                const statusCtx = document.getElementById('statusChart');
+                if (!statusCtx) {
+                    console.error("Status chart canvas not found.");
+                    return;
+                }
+                const statusChartContext = statusCtx.getContext('2d');
+                const inProgressTasksCount = this.state.tasks.filter(t => t.status === 'In Progress').length;
+                const notStartedTasksCount = this.state.tasks.filter(t => t.status === 'Not Started').length;
+                
+                if (this.charts.statusChart) {
+                    this.charts.statusChart.destroy();
+                    this.charts.statusChart = null; // Explicitly nullify after destroy
+                }
+                 this.charts.statusChart = new Chart(statusChartContext, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['เสร็จแล้ว', 'กำลังดำเนินการ', 'ยังไม่เริ่ม'],
+                        datasets: [{
+                            data: [completedTasksCount, inProgressTasksCount, notStartedTasksCount],
+                            backgroundColor: ['#A2B49D', '#CDA8A0', '#E0E0E0'], // Muted Green, Terracotta, Light Gray
+                            borderWidth: 0,
+                        }]
+                    },
+                     options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: {
+                            legend: { 
+                                display: true,
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 12,
+                                    font: { size: 10 },
+                                    generateLabels: function(chart) {
+                                        const data = chart.data;
+                                        if (data.labels.length && data.datasets.length) {
+                                            return data.labels.map(function(label, i) {
+                                                const meta = chart.getDatasetMeta(0);
+                                                // Provide a fallback style if meta.data[i] is undefined
+                                                const style = (meta && meta.data && meta.data[i] && meta.data[i].options) ? meta.data[i].options : {
+                                                    backgroundColor: data.datasets[0].backgroundColor[i] || '#CCCCCC', 
+                                                    borderColor: '#FFFFFF', 
+                                                    borderWidth: 0 
+                                                };
+                                                const value = data.datasets[0].data[i];
+                                                const total = data.datasets[0].data.reduce((sum, current) => sum + current, 0);
+                                                const percentage = total > 0 ? (value / total * 100).toFixed(1) + '%' : '0%';
+
+                                                let displayLabel = label;
+                                                if (label.length > 16) {
+                                                    displayLabel = label.match(/.{1,15}/g).join('\n'); 
+                                                }
+
+                                                return {
+                                                    text: `${displayLabel} (${percentage})`,
+                                                    fillStyle: style.backgroundColor,
+                                                    strokeStyle: style.borderColor,
+                                                    lineWidth: style.borderWidth, 
+                                                    hidden: isNaN(data.datasets[0].data[i]) || ((meta && meta.data && meta.data[i]) && meta.data[i].hidden), 
+                                                    index: i
+                                                };
+                                            });
+                                        }
+                                        return [];
+                                    }
+                                }
+                             },
+                            tooltip: { 
+                                enabled: true,
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed !== null) {
+                                            label += context.parsed;
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            /**
+             * Helper function to parse Thai date string and convert to ISO (YYYY-MM-DD).
+             * @param {string} thaiDateString - The date string in Thai format (e.g., "27 ส.ค. 2568").
+             * @returns {string|null} The date in ISO format or null if invalid.
+             */
+            parseThaiDateToISO(thaiDateString) {
+                const parts = thaiDateString.split(' ');
+                if (parts.length < 3) return null; 
+
+                const day = parseInt(parts[0]);
+                const thaiMonth = parts[1];
+                let year = parseInt(parts[2]);
+
+                if (year > 2500) { 
+                    year -= 543; // Convert B.E. to A.D.
+                }
+
+                const thaiMonthMap = {
+                    'ม.ค.': '01', 'ก.พ.': '02', 'มี.ค.': '03', 'เม.ย.': '04', 'พ.ค.': '05', 'มิ.ย.': '06',
+                    'ก.ค.': '07', 'ส.ค.': '08', 'ก.ย.': '09', 'ต.ค.': '10', 'พ.ย.': '11', 'ธ.ค.': '12'
+                };
+                const month = thaiMonthMap[thaiMonth];
+
+                if (isNaN(day) || !month || isNaN(year)) {
+                    console.warn('Invalid date part:', thaiDateString);
+                    return null;
+                }
+
+                return `${year}-${month}-${String(day).padStart(2, '0')}`;
+            }
+        }
+
+        // Initialize the app when the DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            window.studyTrackerApp = new StudyTrackerApp();
+        });
+    </script>
+</body>
+</html>
