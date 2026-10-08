@@ -186,12 +186,16 @@
             cursor: pointer;
         }
     </style>
-</head>
+<style>
+/* HRTX custom wordmark uses the transparent artwork and inherits theme color. */
+.hrtx-wordmark{display:inline-block;vertical-align:middle;flex-shrink:0;width:112px;height:29.37px;background-color:currentColor;-webkit-mask-image:url("assets/hrtx-wordmark.png");mask-image:url("assets/hrtx-wordmark.png");-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-size:176.7101% 225.1553%;mask-size:176.7101% 225.1553%;-webkit-mask-position:49.1507% 52.8536%;mask-position:49.1507% 52.8536%}
+.hrtx-tracker-brand{color:#556B2F;margin:0 0 12px;text-align:center}.hrtx-tracker-brand .hrtx-wordmark{width:128px;height:33.56px}</style></head>
 <body class="earth-bg-main earth-text-dark">
 
     <div class="container mx-auto p-4 md:p-6">
         
         <header class="text-center mb-6">
+            <div class="hrtx-tracker-brand"><span class="hrtx-wordmark" role="img" aria-label="HRTX"></span></div>
             <h1 class="text-3xl md:text-4xl font-bold earth-text-green">Study Tracker</h1>
             <p class="text-md mt-1" id="player-name-display"></p>
             <p class="text-sm mt-1" id="student-info-display"></p>
